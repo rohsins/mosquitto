@@ -44,6 +44,7 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	int len;
 	int slen;
 	char *topic_mount;
+	char *mesg;
 #ifdef WITH_BRIDGE
 	char *topic_temp;
 	int i;
@@ -192,6 +193,18 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		topic = stored->topic;
 		dup = 1;
 	}
+	
+	/*
+	  topic: topic
+	  qos: qos
+	  clientId: context->id
+	  message: ?
+	 */
+
+	mesg = mosquitto__malloc(payloadlen + 1);
+	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
+	mesg[payloadlen] = '\0';
+	log__printf(NULL, MOSQ_LOG_INFO, "\n topic: %s\n qos: %d\n clientId: %s\n message: %s", topic, qos, context->id, mesg);
 
 	switch(qos){
 		case 0:
