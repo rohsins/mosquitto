@@ -199,8 +199,10 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	mesg[payloadlen] = '\0';
 	
 	log__printf(NULL, MOSQ_LOG_INFO, "\n topic: %s\n qos: %d\n clientId: %s\n message: %s\n ip-address: %s", topic, qos, context->id, mesg, context->address);
-
-	send__real_publish(context, context->in_packet.mid, "green", payloadlen, mesg, 1, false, false);
+	
+	if (strcmp(&db->config->server_topic, "")) {
+	        send__real_publish(context, context->in_packet.mid, db->config->server_topic, payloadlen, mesg, 1, false, false);
+	}
 
 	switch(qos){
 		case 0:
