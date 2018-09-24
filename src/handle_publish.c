@@ -194,17 +194,13 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		dup = 1;
 	}
 	
-	/*
-	  topic: topic
-	  qos: qos
-	  clientId: context->id
-	  message: ?
-	 */
-
 	mesg = mosquitto__malloc(payloadlen + 1);
 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
 	mesg[payloadlen] = '\0';
-	log__printf(NULL, MOSQ_LOG_INFO, "\n topic: %s\n qos: %d\n clientId: %s\n message: %s", topic, qos, context->id, mesg);
+	
+	log__printf(NULL, MOSQ_LOG_INFO, "\n topic: %s\n qos: %d\n clientId: %s\n message: %s\n ip-address: %s", topic, qos, context->id, mesg, context->address);
+
+	send__real_publish(context, context->in_packet.mid, "green", payloadlen, mesg, 1, false, false);
 
 	switch(qos){
 		case 0:
