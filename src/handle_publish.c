@@ -193,15 +193,18 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		topic = stored->topic;
 		dup = 1;
 	}
-	
-	mesg = mosquitto__malloc(payloadlen + 1);
-	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
-	mesg[payloadlen] = '\0';
-	
-	log__printf(NULL, MOSQ_LOG_INFO, "\n topic: %s\n qos: %d\n clientId: %s\n message: %s\n ip-address: %s", topic, qos, context->id, mesg, context->address);
-	
+		
 	if (strcmp(&db->config->server_topic, "")) {
-	        send__real_publish(context, context->in_packet.mid, db->config->server_topic, payloadlen, mesg, 1, false, false);
+	        mesg = mosquitto__malloc(payloadlen + 1);
+		memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
+		mesg[payloadlen] = '\0';
+
+		char* cpacket;
+		int cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 69;
+		cpacket = mosquitto__malloc(cpacket_length);
+		sprintf(cpacket, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
+	        send__real_publish(context, context->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
+		mosquitto__free(cpacket);
 	}
 
 	switch(qos){
