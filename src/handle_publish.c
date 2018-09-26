@@ -203,12 +203,9 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	mesg[payloadlen] = '\0';
 
 	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 70;
-		log__printf(NULL, MOSQ_LOG_INFO, "mesg: %s", mesg);
-		log__printf(NULL, MOSQ_LOG_INFO, "payload length: %d, string length: %d, cpacket: %d", payloadlen, strlen(mesg), cpacket_length);
 	 	cpacket = mosquitto__malloc(cpacket_length);
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
 	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
-		log__printf(NULL, MOSQ_LOG_INFO, "composed packet: %s", cpacket);
 	 	memcpy(context_alias, context, sizeof(struct mosquitto));
 	 	context_alias->address = "127.0.0.1";
 	 	context_alias->sock = db->config->server_sock;
