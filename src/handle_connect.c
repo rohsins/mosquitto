@@ -653,7 +653,7 @@ int handle__connect(struct mosquitto_db *db, struct mosquitto *context)
 		context->will->retain = will_retain;
 	}
 
-	if (!strcmp(context->address, (char *) "127.0.0.1")) {
+	if (!strcmp((char *) client_id, (char *) db->config->server_client_id) && (db->config->server_sock == -1)) {
 	        db->config->server_sock = context->sock;
 	}
 

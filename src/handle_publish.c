@@ -197,21 +197,24 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		dup = 1;
 	}
 		
-	if (strcmp(&db->config->server_topic, "") && db->config->server_sock != -1) {
-	        mesg = mosquitto__malloc(payloadlen + 1);
-		memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
-		mesg[payloadlen] = '\0';
+	if (strcmp((char *) db->config->server_topic, (char *) "") && strcmp((char *) db->config->server_client_id, (char *) "") && db->config->server_sock != -1) {
+	        mesg = mosquitto__malloc(payloadlen + 1); 
+	 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
+	 	mesg[payloadlen] = '\0';
 
-		cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 69;
-		cpacket = mosquitto__malloc(cpacket_length);
-		context_alias = mosquitto__malloc(sizeof(struct mosquitto));
-		sprintf(cpacket, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
-		memcpy(context_alias, context, sizeof(struct mosquitto));
-		context_alias->address = "127.0.0.1";
-		context_alias->sock = db->config->server_sock;
-	        send__publish(context_alias, context->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
-		mosquitto__free(cpacket);
-		mosquitto__free(context_alias);
+	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 70;
+		log__printf(NULL, MOSQ_LOG_INFO, "mesg: %s", mesg);
+		log__printf(NULL, MOSQ_LOG_INFO, "payload length: %d, string length: %d, cpacket: %d", payloadlen, strlen(mesg), cpacket_length);
+	 	cpacket = mosquitto__malloc(cpacket_length);
+	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
+	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
+		log__printf(NULL, MOSQ_LOG_INFO, "composed packet: %s", cpacket);
+	 	memcpy(context_alias, context, sizeof(struct mosquitto));
+	 	context_alias->address = "127.0.0.1";
+	 	context_alias->sock = db->config->server_sock;
+	        send__real_publish(context_alias, context->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
+	 	mosquitto__free(cpacket);
+	 	mosquitto__free(context_alias);
 	}
 
 	switch(qos){

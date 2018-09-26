@@ -224,6 +224,7 @@ static void config__init_reload(struct mosquitto_db *db, struct mosquitto__confi
 	config->upgrade_outgoing_qos = false;
 	config->server_topic = NULL;
 	config->server_sock = -1;
+	config->server_client_id = NULL;
 	
 	config__cleanup_plugins(config);
 }
@@ -2023,7 +2024,9 @@ int config__read_file_core(struct mosquitto__config *config, bool reload, struct
 						|| !strcmp(token, "trace_output")){
 					log__printf(NULL, MOSQ_LOG_WARNING, "Warning: Unsupported rsmb configuration option \"%s\".", token);
 				}else if (!strcmp(token, "server_topic")){
-				  if(conf__parse_string(&token, "server_topic", &config->server_topic, saveptr)) return MOSQ_ERR_INVAL;
+				        if(conf__parse_string(&token, "server_topic", &config->server_topic, saveptr)) return MOSQ_ERR_INVAL;
+				}else if (!strcmp(token, "server_client_id")){
+				        if(conf__parse_string(&token, "server_client_id", &config->server_client_id, saveptr)) return MOSQ_ERR_INVAL;
 				}else{
 					log__printf(NULL, MOSQ_LOG_ERR, "Error: Unknown configuration variable \"%s\".", token);
 					return MOSQ_ERR_INVAL;

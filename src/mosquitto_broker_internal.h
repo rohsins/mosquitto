@@ -272,6 +272,7 @@ struct mosquitto__config {
 	int sys_interval;
 	bool upgrade_outgoing_qos;
 	char *user;
+        char *server_client_id;
         char *server_topic;
         mosq_sock_t server_sock;
 #ifdef WITH_WEBSOCKETS
