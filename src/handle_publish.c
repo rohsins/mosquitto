@@ -209,9 +209,6 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		memcpy(context_alias, context, sizeof(struct mosquitto));
 		context_alias->address = "127.0.0.1";
 		context_alias->sock = db->config->server_sock;
-		log__printf(NULL, MOSQ_LOG_INFO, "address length: %d, server_sock: %d", strlen(context->address), db->config->server_sock);
-		log__printf(NULL, MOSQ_LOG_INFO, "w_socket: %d, r_socket: %d", context->sock, context->sock);
-		log__printf(NULL, MOSQ_LOG_INFO, "address: %s", context->address);
 	        send__publish(context_alias, context->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 		mosquitto__free(cpacket);
 		mosquitto__free(context_alias);
