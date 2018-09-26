@@ -273,6 +273,7 @@ struct mosquitto__config {
 	bool upgrade_outgoing_qos;
 	char *user;
         char *server_topic;
+        mosq_sock_t server_sock;
 #ifdef WITH_WEBSOCKETS
 	int websockets_log_level;
 	bool have_websockets_listener;

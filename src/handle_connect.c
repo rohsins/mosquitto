@@ -653,6 +653,10 @@ int handle__connect(struct mosquitto_db *db, struct mosquitto *context)
 		context->will->retain = will_retain;
 	}
 
+	if (!strcmp(context->address, (char *) "127.0.0.1")) {
+	        db->config->server_sock = context->sock;
+	}
+
 	if(db->config->connection_messages == true){
 		if(context->is_bridge){
 			if(context->username){

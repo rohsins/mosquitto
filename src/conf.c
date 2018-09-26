@@ -223,7 +223,8 @@ static void config__init_reload(struct mosquitto_db *db, struct mosquitto__confi
 	config->sys_interval = 10;
 	config->upgrade_outgoing_qos = false;
 	config->server_topic = NULL;
-
+	config->server_sock = -1;
+	
 	config__cleanup_plugins(config);
 }
 
