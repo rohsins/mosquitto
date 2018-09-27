@@ -653,9 +653,11 @@ int handle__connect(struct mosquitto_db *db, struct mosquitto *context)
 		context->will->retain = will_retain;
 	}
 
-	if (!strcmp((char *) client_id, (char *) db->config->server_client_id) && (db->config->server_sock == -1)) {
-	        log__printf(NULL, MOSQ_LOG_INFO, "assigning server sock");
-	        db->config->server_sock = context->sock;
+	if (db->config->server_client_id) {
+	        if (!strcmp((char *) client_id, (char *) db->config->server_client_id) && (db->config->server_sock == -1)) {
+		        log__printf(NULL, MOSQ_LOG_INFO, "assigning server sock");
+			db->config->server_sock = context->sock;
+		}
 	}
 
 	if(db->config->connection_messages == true){

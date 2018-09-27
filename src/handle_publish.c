@@ -196,9 +196,9 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 		topic = stored->topic;
 		dup = 1;
 	}
-		
-	if (strcmp((char *) db->config->server_topic, (char *) "") && strcmp((char *) db->config->server_client_id, (char *) "") && db->config->server_sock != -1 && strcmp((char *) context->address, (char *) "127.0.0.1")) {
-	        mesg = mosquitto__malloc(payloadlen + 1); 
+
+	if (db->config->server_topic && db->config->server_client_id && db->config->server_sock != -1 && strcmp((char *) context->address, (char *) "127.0.0.1")) {
+	        mesg = mosquitto__malloc(payloadlen + 1);
 	 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
 	 	mesg[payloadlen] = '\0';
 
