@@ -324,6 +324,9 @@ int mosquitto_main_loop(struct mosquitto_db *db, mosq_sock_t *listensock, int li
 						}else{
 							id = "<unknown>";
 						}
+						if (!strcmp(context->id, db->config->server_client_id) && db->config->server_sock != -1) {
+						        db->config->server_sock = -1;
+						}
 						log__printf(NULL, MOSQ_LOG_NOTICE, "Client %s has exceeded timeout, disconnecting.", id);
 					}
 					/* Client has exceeded keepalive*1.5 */
@@ -648,8 +651,14 @@ void do_disconnect(struct mosquitto_db *db, struct mosquitto *context)
 				id = "<unknown>";
 			}
 			if(context->state != mosq_cs_disconnecting){
+			        if (!strcmp(context->id, db->config->server_client_id) && db->config->server_sock != -1) {
+			                db->config->server_sock = -1;
+				}
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Socket error on client %s, disconnecting.", id);
 			}else{
+			        if (!strcmp(context->id, db->config->server_client_id) && db->config->server_sock != -1) {
+				        db->config->server_sock = -1;
+				}			  
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Client %s disconnected.", id);
 			}
 		}

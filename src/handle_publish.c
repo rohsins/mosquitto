@@ -207,9 +207,11 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
 	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
 	 	memcpy(context_alias, context, sizeof(struct mosquitto));
-	 	context_alias->address = "127.0.0.1";
+	 	//context_alias->address = "127.0.0.1";
 	 	context_alias->sock = db->config->server_sock;
-	        send__real_publish(context_alias, context->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
+		log__printf(NULL, MOSQ_LOG_INFO, "\n\nClient info:\n\taddress: %s\n\tsock: %d\n\tclient id: %s\n\nServer info:\n\taddress: %s\n\tsock: %d\n\tclient id: %s\n\n", context->address, context->sock, context->id, context_alias->address, context_alias->sock, db->config->server_client_id);
+		log__printf(NULL, MOSQ_LOG_INFO, "packed data: %s", cpacket);
+	        send__real_publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
 	 	mosquitto__free(context_alias);
 	}
