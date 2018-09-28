@@ -207,16 +207,13 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	cpacket = mosquitto__malloc(cpacket_length);
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
 		
-		memcpy(context_alias, context, sizeof(struct mosquitto));
+		memset(context_alias, 0, sizeof(struct mosquitto));
 		
 	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
 
 	 	context_alias->sock = db->config->server_sock;
-		memset (&context_alias->in_packet, 0, sizeof(struct mosquitto__packet));
-		context_alias->current_out_packet = NULL;
-		context_alias->out_packet = NULL;
-		context_alias->will = NULL;
-		context_alias->ssl = NULL; // manage certificate to support SSL in the NetworkServer side
+
+		// context_alias->ssl = NULL; // manage certificate to support SSL in the NetworkServer side
 		
 	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
