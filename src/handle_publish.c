@@ -203,17 +203,20 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	mesg[payloadlen] = '\0';
 
 	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 70;
+		
 	 	cpacket = mosquitto__malloc(cpacket_length);
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
-	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
-	 	memcpy(context_alias, context, sizeof(struct mosquitto));
-	 	//context_alias->address = "127.0.0.1";
-	 	context_alias->sock = db->config->server_sock;
 		
-		//log__printf(NULL, MOSQ_LOG_INFO, "\n\nClient info:\n\taddress: %s\n\tsock: %d\n\tclient id: %s\n\nServer info:\n\taddress: %s\n\tsock: %d\n\tclient id: %s\n\n", context->address, context->sock, context->id, context_alias->address, context_alias->sock, db->config->server_client_id);
-		//log__printf(NULL, MOSQ_LOG_INFO, "\n\nsock: %d\nprotocol: %d\naddress: %s\nid: %s\nusername: %s\npassword: %s\nkeepalive: %d\nlast_mid: %d\nstate: %d\n\n", context->sock, context->protocol, context->address, context->id, context->username, context->password, context->keepalive, context->last_mid, context->state);
+		memcpy(context_alias, context, sizeof(struct mosquitto));
+		
+	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": \"%s\"}", context->id, context->address, topic, qos, mesg);
 
-		log__printf(NULL, MOSQ_LOG_INFO, "\npacked data: %s\n\n", cpacket);
+	 	context_alias->sock = db->config->server_sock;
+		memset (&context_alias->in_packet, 0, sizeof(struct mosquitto__packet));
+		context_alias->current_out_packet = NULL;
+		context_alias->out_packet = NULL;
+		context_alias->will = NULL;
+		context_alias->ssl = NULL; // manage certificate to support SSL in the NetworkServer side
 		
 	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
