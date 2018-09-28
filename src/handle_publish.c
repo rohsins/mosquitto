@@ -215,7 +215,7 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 
 		// context_alias->ssl = NULL; // manage certificate to support SSL in the NetworkServer side
 		
-	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
+	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length - 1, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
 	 	mosquitto__free(context_alias);
 	}
