@@ -202,14 +202,14 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
 	 	mesg[payloadlen] = '\0';
 
-	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 68;
+	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 59;
 		
 	 	cpacket = mosquitto__malloc(cpacket_length);
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
 		
 		memset(context_alias, 0, sizeof(struct mosquitto));
 		
-	 	snprintf(cpacket, cpacket_length, "{\"clientId\": \"%s\", \"address\": \"%s\", \"topic\": \"%s\", \"qos\": %d, \"message\": %s}", context->id, context->address, topic, qos, mesg);
+	 	snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"message\":%s}", context->id, context->address, topic, qos, mesg);
 
 	 	context_alias->sock = db->config->server_sock;
 
