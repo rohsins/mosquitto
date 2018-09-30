@@ -275,6 +275,7 @@ struct mosquitto__config {
         char *server_client_id;
         char *server_topic;
         mosq_sock_t server_sock;
+        SSL *server_ssl;
 #ifdef WITH_WEBSOCKETS
 	int websockets_log_level;
 	bool have_websockets_listener;

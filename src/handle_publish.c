@@ -212,8 +212,7 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"message\":%s}", context->id, context->address, topic, qos, mesg);
 
 	 	context_alias->sock = db->config->server_sock;
-
-		// context_alias->ssl = NULL; // manage certificate to support SSL in the NetworkServer side
+		context_alias->ssl = db->config->server_ssl;
 		
 	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length - 1, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);

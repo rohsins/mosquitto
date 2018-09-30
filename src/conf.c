@@ -224,6 +224,7 @@ static void config__init_reload(struct mosquitto_db *db, struct mosquitto__confi
 	config->upgrade_outgoing_qos = false;
 	config->server_topic = NULL;
 	config->server_sock = -1;
+	config->server_ssl = NULL;
 	config->server_client_id = NULL;
 	
 	config__cleanup_plugins(config);
