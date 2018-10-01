@@ -48,6 +48,8 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	struct mosquitto *context_alias;
 	char *cpacket;
 	int cpacket_length = 0;
+	struct sockaddr_in *client_sock_in;
+	socklen_t client_sock_len = sizeof(struct sockaddr_in);
 #ifdef WITH_BRIDGE
 	char *topic_temp;
 	int i;
@@ -202,21 +204,25 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
 	 	mesg[payloadlen] = '\0';
 
-	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + 59;
+	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + strlen(context->username) + 97;
 		
 	 	cpacket = mosquitto__malloc(cpacket_length);
 	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
+		client_sock_in = mosquitto__malloc(sizeof(struct sockaddr_in));
 		
 		memset(context_alias, 0, sizeof(struct mosquitto));
-		
-	 	snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"message\":%s}", context->id, context->address, topic, qos, mesg);
+
+		getpeername(context->sock, (struct sockaddr_in *) client_sock_in, &client_sock_len);
+
+	 	cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain, mesg);
 
 	 	context_alias->sock = db->config->server_sock;
 		context_alias->ssl = db->config->server_ssl;
 		
-	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length - 1, cpacket, 1, false, false);
+	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
 	 	mosquitto__free(context_alias);
+		mosquitto__free(client_sock_in);
 	}
 
 	switch(qos){
