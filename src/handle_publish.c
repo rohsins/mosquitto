@@ -219,7 +219,7 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 	 	context_alias->sock = db->config->server_sock;
 		context_alias->ssl = db->config->server_ssl;
 		
-	        send__publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
+	        send__real_publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
 	 	mosquitto__free(cpacket);
 	 	mosquitto__free(context_alias);
 		mosquitto__free(client_sock_in);
