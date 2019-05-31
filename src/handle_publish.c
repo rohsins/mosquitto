@@ -214,7 +214,11 @@ int handle__publish(struct mosquitto_db *db, struct mosquitto *context)
 
 		getpeername(context->sock, (struct sockaddr_in *) client_sock_in, &client_sock_len);
 
-	 	cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain, mesg);
+		if (payloadlen != 0) {
+		  cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain, mesg);
+		} else {
+		  cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain);
+		}
 
 	 	context_alias->sock = db->config->server_sock;
 		context_alias->ssl = db->config->server_ssl;
