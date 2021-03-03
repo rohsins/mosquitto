@@ -1,12 +1,12 @@
 /*
-Copyright (c) 2010-2018 Roger Light <roger@atchoo.org>
+Copyright (c) 2010-2019 Roger Light <roger@atchoo.org>
 
 All rights reserved. This program and the accompanying materials
-are made available under the terms of the Eclipse Public License v1.0
+are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
 
 The Eclipse Public License is available at
-   http://www.eclipse.org/legal/epl-v10.html
+   https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
 
@@ -17,7 +17,7 @@ Contributors:
 #ifndef MOSQUITTOPP_H
 #define MOSQUITTOPP_H
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(LIBMOSQUITTO_STATIC)
 #	ifdef mosquittopp_EXPORTS
 #		define mosqpp_EXPORT  __declspec(dllexport)
 #	else
@@ -33,8 +33,9 @@ Contributors:
 
 namespace mosqpp {
 
-mosqpp_EXPORT const char *strerror(int mosq_errno);
-mosqpp_EXPORT const char *connack_string(int connack_code);
+
+mosqpp_EXPORT const char * strerror(int mosq_errno);
+mosqpp_EXPORT const char * connack_string(int connack_code);
 mosqpp_EXPORT int sub_topic_tokenise(const char *subtopic, char ***topics, int *count);
 mosqpp_EXPORT int sub_topic_tokens_free(char ***topics, int count);
 mosqpp_EXPORT int lib_version(int *major, int *minor, int *revision);

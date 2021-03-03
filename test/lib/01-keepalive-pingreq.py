@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Test whether a client sends a pingreq after the keepalive time
 
@@ -7,23 +7,12 @@
 # The client should send a PINGREQ message after the appropriate amount of time
 # (4 seconds after no traffic).
 
-import inspect
-import os
-import socket
-import sys
-import time
-
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
-
-import mosq_test
+from mosq_test_helper import *
 
 port = mosq_test.get_lib_port()
 
 rc = 1
-keepalive = 4
+keepalive = 5
 connect_packet = mosq_test.gen_connect("01-keepalive-pingreq", keepalive=keepalive)
 connack_packet = mosq_test.gen_connack(rc=0)
 
@@ -50,17 +39,18 @@ try:
     (conn, address) = sock.accept()
     conn.settimeout(keepalive+10)
 
-    if mosq_test.expect_packet(conn, "connect", connect_packet):
-        conn.send(connack_packet)
+    mosq_test.do_receive_send(conn, connect_packet, connack_packet, "connect")
 
-        if mosq_test.expect_packet(conn, "pingreq", pingreq_packet):
-            time.sleep(1.0)
-            conn.send(pingresp_packet)
+    mosq_test.expect_packet(conn, "pingreq", pingreq_packet)
+    time.sleep(1.0)
+    conn.send(pingresp_packet)
 
-            if mosq_test.expect_packet(conn, "pingreq", pingreq_packet):
-                rc = 0
+    mosq_test.expect_packet(conn, "pingreq", pingreq_packet)
+    rc = 0
 
     conn.close()
+except mosq_test.TestError:
+    pass
 finally:
     client.terminate()
     client.wait()

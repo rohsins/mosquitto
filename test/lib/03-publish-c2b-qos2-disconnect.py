@@ -1,18 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Test whether a client sends a correct PUBLISH to a topic with QoS 2 and responds to a disconnect.
 
-import inspect
-import os
-import socket
-import sys
-
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
-
-import mosq_test
+from mosq_test_helper import *
 
 port = mosq_test.get_lib_port()
 
@@ -50,40 +40,35 @@ try:
     (conn, address) = sock.accept()
     conn.settimeout(10)
 
-    if mosq_test.expect_packet(conn, "connect", connect_packet):
-        conn.send(connack_packet)
+    mosq_test.do_receive_send(conn, connect_packet, connack_packet, "connect")
 
-        if mosq_test.expect_packet(conn, "publish", publish_packet):
-            # Disconnect client. It should reconnect.
-            conn.close()
+    mosq_test.expect_packet(conn, "publish", publish_packet)
+    # Disconnect client. It should reconnect.
+    conn.close()
 
-            (conn, address) = sock.accept()
-            conn.settimeout(15)
+    (conn, address) = sock.accept()
+    conn.settimeout(15)
 
-            if mosq_test.expect_packet(conn, "connect", connect_packet):
-                conn.send(connack_packet)
+    mosq_test.do_receive_send(conn, connect_packet, connack_packet, "connect")
+    mosq_test.do_receive_send(conn, publish_dup_packet, pubrec_packet, "retried publish")
 
-                if mosq_test.expect_packet(conn, "retried publish", publish_dup_packet):
-                    conn.send(pubrec_packet)
+    mosq_test.expect_packet(conn, "pubrel", pubrel_packet)
+    # Disconnect client. It should reconnect.
+    conn.close()
 
-                    if mosq_test.expect_packet(conn, "pubrel", pubrel_packet):
-                        # Disconnect client. It should reconnect.
-                        conn.close()
+    (conn, address) = sock.accept()
+    conn.settimeout(15)
 
-                        (conn, address) = sock.accept()
-                        conn.settimeout(15)
+    # Complete connection and message flow.
+    mosq_test.do_receive_send(conn, connect_packet, connack_packet, "connect")
+    mosq_test.do_receive_send(conn, pubrel_packet, pubcomp_packet, "retried pubrel")
 
-                        # Complete connection and message flow.
-                        if mosq_test.expect_packet(conn, "connect", connect_packet):
-                            conn.send(connack_packet)
-
-                            if mosq_test.expect_packet(conn, "retried pubrel", pubrel_packet):
-                                conn.send(pubcomp_packet)
-
-                                if mosq_test.expect_packet(conn, "disconnect", disconnect_packet):
-                                    rc = 0
+    mosq_test.expect_packet(conn, "disconnect", disconnect_packet)
+    rc = 0
 
     conn.close()
+except mosq_test.TestError:
+    pass
 finally:
     client.terminate()
     client.wait()

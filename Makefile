@@ -1,10 +1,50 @@
 include config.mk
 
-DIRS=lib client src
+DIRS=lib apps client plugins src
 DOCDIRS=man
 DISTDIRS=man
+DISTFILES= \
+	apps/ \
+	client/ \
+	cmake/ \
+	deps/ \
+	examples/ \
+	include/ \
+	installer/ \
+	lib/ \
+	logo/ \
+	man/ \
+	misc/ \
+	plugins/ \
+	security/ \
+	service/ \
+	snap/ \
+	src/ \
+	test/ \
+	\
+	CMakeLists.txt \
+	CONTRIBUTING.md \
+	ChangeLog.txt \
+	LICENSE.txt \
+	Makefile \
+	about.html \
+	aclfile.example \
+	config.h \
+	config.mk \
+	edl-v10 \
+	epl-v20 \
+	libmosquitto.pc.in \
+	libmosquittopp.pc.in \
+	mosquitto.conf \
+	notice.html \
+	pskfile.example \
+	pwfile.example \
+	README-compiling.md \
+	README-letsencrypt.md \
+	README-windows.txt \
+	README.md
 
-.PHONY : all mosquitto api docs binary clean reallyclean test install uninstall dist sign copy
+.PHONY : all mosquitto api docs binary check clean reallyclean test install uninstall dist sign copy localdocker
 
 all : $(MAKE_ALL)
 
@@ -36,13 +76,18 @@ reallyclean :
 	$(MAKE) -C test reallyclean
 	-rm -f *.orig
 
-ptest : mosquitto
-	$(MAKE) -C test ptest
+check : test
 
 test : mosquitto
 	$(MAKE) -C test test
 
-install : mosquitto
+ptest : mosquitto
+	$(MAKE) -C test ptest
+
+utest : mosquitto
+	$(MAKE) -C test utest
+
+install : all
 	set -e; for d in ${DIRS}; do $(MAKE) -C $${d} install; done
 ifeq ($(WITH_DOCS),yes)
 	set -e; for d in ${DOCDIRS}; do $(MAKE) -C $${d} install; done
@@ -64,20 +109,28 @@ dist : reallyclean
 	set -e; for d in ${DISTDIRS}; do $(MAKE) -C $${d} dist; done
 	
 	mkdir -p dist/mosquitto-${VERSION}
-	cp -r client examples installer lib logo man misc security service src test about.html aclfile.example ChangeLog.txt CMakeLists.txt compiling.txt config.h config.mk CONTRIBUTING.md edl-v10 epl-v10 libmosquitto.pc.in libmosquittopp.pc.in LICENSE.txt Makefile mosquitto.conf notice.html pskfile.example pwfile.example readme.md readme-windows.txt dist/mosquitto-${VERSION}/
+	cp -r ${DISTFILES} dist/mosquitto-${VERSION}/
 	cd dist; tar -zcf mosquitto-${VERSION}.tar.gz mosquitto-${VERSION}/
-	set -e; for m in man/*.xml; \
-		do \
-		hfile=$$(echo $${m} | sed -e 's#man/\(.*\)\.xml#\1#' | sed -e 's/\./-/g'); \
-		$(XSLTPROC) $(DB_HTML_XSL) $${m} > dist/$${hfile}.html; \
-	done
-
 
 sign : dist
 	cd dist; gpg --detach-sign -a mosquitto-${VERSION}.tar.gz
 
 copy : sign
 	cd dist; scp mosquitto-${VERSION}.tar.gz mosquitto-${VERSION}.tar.gz.asc mosquitto:site/mosquitto.org/files/source/
-	cd dist; scp *.html mosquitto:site/mosquitto.org/man/
 	scp ChangeLog.txt mosquitto:site/mosquitto.org/
+
+coverage :
+	lcov --capture --directory . --output-file coverage.info
+	genhtml coverage.info --output-directory out
+
+localdocker : reallyclean
+	set -e; for d in ${DISTDIRS}; do $(MAKE) -C $${d} dist; done
+	
+	rm -rf dockertmp/
+	mkdir -p dockertmp/mosquitto-${VERSION}
+	cp -r ${DISTFILES} dockertmp/mosquitto-${VERSION}/
+	cd dockertmp/; tar -zcf mosq.tar.gz mosquitto-${VERSION}/
+	cp dockertmp/mosq.tar.gz docker/local
+	rm -rf dockertmp/
+	cd docker/local && docker build . -t eclipse-mosquitto:local
 

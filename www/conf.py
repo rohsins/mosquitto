@@ -87,12 +87,17 @@ NAVIGATION_LINKS = {
         #("/sponsoring/", "Sponsoring"),
         (
             (
+                ("/documentation/", "All"),
+                ("/roadmap/", "Roadmap"),
                 ("/api/", "API"),
                 ("/man/libmosquitto-3.html", "libmosquitto"),
                 ("/man/mosquitto-8.html", "mosquitto"),
                 ("/man/mosquitto-conf-5.html", "mosquitto.conf"),
+                ("/man/mosquitto_ctrl-1.html", "mosquitto_ctrl"),
+                ("/man/mosquitto_ctrl_dynsec-1.html", "mosquitto_ctrl_dynsec"),
                 ("/man/mosquitto_passwd-1.html", "mosquitto_passwd"),
                 ("/man/mosquitto_pub-1.html", "mosquitto_pub"),
+                ("/man/mosquitto_rr-1.html", "mosquitto_rr"),
                 ("/man/mosquitto_sub-1.html", "mosquitto_sub"),
                 ("/man/mosquitto-tls-7.html", "mosquitto-tls"),
                 ("/man/mqtt-7.html", "mqtt"),
@@ -154,7 +159,8 @@ PAGES = (
     ("pages/*.txt", "", "story.tmpl"),
     ("pages/*.html", "", "story.tmpl"),
     ("pages/*.md", "", "story.tmpl"),
-    ("../man/*.xml", "man", "story.tmpl"),
+    ("pages/documentation/*.md", "", "story.tmpl"),
+    ("man/*.xml", "man", "story.tmpl"),
 )
 
 
@@ -1171,7 +1177,20 @@ PRETTY_URLS = True
 # Note: most Nikola-specific extensions are done via the Nikola plugin system,
 #       with the MarkdownExtension class and should not be added here.
 # The default is ['fenced_code', 'codehilite']
-MARKDOWN_EXTENSIONS = ['fenced_code', 'codehilite', 'extra']
+#MARKDOWN_EXTENSIONS = ['fenced_code', 'codehilite', 'extra', 'toc']
+
+MARKDOWN_EXTENSIONS = ['markdown.extensions.fenced_code', 'markdown.extensions.codehilite', 'markdown.extensions.extra', 'markdown.extensions.toc']
+
+# Options to be passed to markdown extensions (See https://python-markdown.github.io/reference/)
+# Default is {} (no config at all)
+MARKDOWN_EXTENSION_CONFIGS = {
+    DEFAULT_LANG: {
+        'markdown.extensions.toc':{
+            'toc_depth':2
+        }
+    }
+}
+
 
 # Extra options to pass to the pandoc command.
 # by default, it's empty, is a list of strings, for example

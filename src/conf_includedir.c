@@ -1,21 +1,24 @@
 /*
-Copyright (c) 2009-2018 Roger Light <roger@atchoo.org>
+Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
 
 All rights reserved. This program and the accompanying materials
-are made available under the terms of the Eclipse Public License v1.0
+are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
  
 The Eclipse Public License is available at
-   http://www.eclipse.org/legal/epl-v10.html
+   https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
  
+SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
+
 Contributors:
    Roger Light - initial implementation and documentation.
 */
 
 #include "config.h"
 
+#include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +39,7 @@ Contributors:
 #  include <ws2tcpip.h>
 #endif
 
-#if !defined(WIN32) && !defined(__CYGWIN__)
+#if !defined(WIN32) && !defined(__CYGWIN__) && !defined(__QNX__)
 #  include <sys/syslog.h>
 #endif
 
@@ -44,18 +47,39 @@ Contributors:
 #include "memory_mosq.h"
 #include "tls_mosq.h"
 #include "util_mosq.h"
-#include "mqtt3_protocol.h"
+#include "mqtt_protocol.h"
 
-int strcasecmp_p(const void *p1, const void *p2)
+
+int scmp_p(const void *p1, const void *p2)
 {
-	return strcasecmp(*(const char **)p1, *(const char **)p2);
-}
+	const char *s1 = *(const char **)p1;
+	const char *s2 = *(const char **)p2;
+	int result;
 
+	while(s1[0] && s2[0]){
+		/* Sort by case insensitive part first */
+		result = toupper(s1[0]) - toupper(s2[0]);
+		if(result == 0){
+			/* Case insensitive part matched, now distinguish between case */
+			result = s1[0] - s2[0];
+			if(result != 0){
+				return result;
+			}
+		}else{
+			/* Return case insensitive match fail */
+			return result;
+		}
+		s1++;
+		s2++;
+	}
+
+	return s1[0] - s2[0];
+}
 
 #ifdef WIN32
 int config__get_dir_files(const char *include_dir, char ***files, int *file_count)
 {
-	int len;
+	size_t len;
 	int i;
 	char **l_files = NULL;
 	int l_file_count = 0;
@@ -102,6 +126,9 @@ int config__get_dir_files(const char *include_dir, char ***files, int *file_coun
 
 	FindClose(fh);
 
+	if(l_files){
+		qsort(l_files, l_file_count, sizeof(char *), scmp_p);
+	}
 	*files = l_files;
 	*file_count = l_file_count;
 
@@ -111,12 +138,13 @@ int config__get_dir_files(const char *include_dir, char ***files, int *file_coun
 
 
 #ifndef WIN32
+
 int config__get_dir_files(const char *include_dir, char ***files, int *file_count)
 {
 	char **l_files = NULL;
 	int l_file_count = 0;
 	char **files_tmp;
-	int len;
+	size_t len;
 	int i;
 
 	DIR *dh;
@@ -133,7 +161,7 @@ int config__get_dir_files(const char *include_dir, char ***files, int *file_coun
 				len = strlen(include_dir)+1+strlen(de->d_name)+1;
 
 				l_file_count++;
-				files_tmp = mosquitto__realloc(l_files, l_file_count*sizeof(char *));
+				files_tmp = mosquitto__realloc(l_files, (size_t)l_file_count*sizeof(char *));
 				if(!files_tmp){
 					for(i=0; i<l_file_count-1; i++){
 						mosquitto__free(l_files[i]);
@@ -160,6 +188,9 @@ int config__get_dir_files(const char *include_dir, char ***files, int *file_coun
 	}
 	closedir(dh);
 
+	if(l_files){
+		qsort(l_files, (size_t)l_file_count, sizeof(char *), scmp_p);
+	}
 	*files = l_files;
 	*file_count = l_file_count;
 

@@ -1,15 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import subprocess
-import time
+from mosq_test_helper import *
 
-import inspect, os, sys
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
+def helper(port, pub_topic):
+    connect_packet = mosq_test.gen_connect("test-helper", keepalive=60)
+    connack_packet = mosq_test.gen_connack(rc=0)
 
-import mosq_test
+    publish_packet = mosq_test.gen_publish(pub_topic, qos=0, retain=True, payload="message")
+
+    sock = mosq_test.do_client_connect(connect_packet, connack_packet, connack_error="helper connack", port=port)
+    sock.send(publish_packet)
+    sock.close()
+
 
 def pattern_test(sub_topic, pub_topic):
     rc = 1
@@ -29,35 +31,31 @@ def pattern_test(sub_topic, pub_topic):
     unsuback_packet = mosq_test.gen_unsuback(mid)
 
     port = mosq_test.get_port()
-    broker = subprocess.Popen(['../../src/mosquitto', '-p', str(port)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
 
     try:
-        time.sleep(0.5)
-
         sock = mosq_test.do_client_connect(connect_packet, connack_packet, timeout=20, port=port)
         mosq_test.do_send_receive(sock, subscribe_packet, suback_packet, "suback")
 
-        pub = subprocess.Popen(['./03-pattern-matching-helper.py', pub_topic, str(port)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        pub.wait()
-        (stdo, stde) = pub.communicate()
+        helper(port, pub_topic)
 
-        if mosq_test.expect_packet(sock, "publish", publish_packet):
-            mosq_test.do_send_receive(sock, unsubscribe_packet, unsuback_packet, "unsuback")
-
-            mosq_test.do_send_receive(sock, subscribe_packet, suback_packet, "suback")
-
-            if mosq_test.expect_packet(sock, "publish retained", publish_retained_packet):
-                rc = 0
+        mosq_test.expect_packet(sock, "publish", publish_packet)
+        mosq_test.do_send_receive(sock, unsubscribe_packet, unsuback_packet, "unsuback")
+        mosq_test.do_send_receive(sock, subscribe_packet, suback_packet, "suback")
+        mosq_test.expect_packet(sock, "publish retained", publish_retained_packet)
+        rc = 0
 
         sock.close()
+    except mosq_test.TestError:
+        pass
     finally:
         broker.terminate()
         broker.wait()
         (stdo, stde) = broker.communicate()
         if rc:
-            print(stde)
-            print(stdo)
-            raise
+            print(stde.decode('utf-8'))
+            print(stdo.decode('utf-8'))
+            sys.exit(rc)
 
     return rc
 
@@ -69,6 +67,7 @@ pattern_test("foo/+/baz/#", "foo/bar/baz")
 pattern_test("foo/+/baz/#", "foo/bar/baz/bar")
 pattern_test("foo/foo/baz/#", "foo/foo/baz/bar")
 pattern_test("foo/#", "foo")
+pattern_test("foo/#", "foo/")
 pattern_test("/#", "/foo")
 pattern_test("test/topic/", "test/topic/")
 pattern_test("test/topic/+", "test/topic/")

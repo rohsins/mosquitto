@@ -39,7 +39,9 @@ int main(int argc, char *argv[])
 	mosquitto_lib_init();
 
 	mosq = mosquitto_new("08-ssl-connect-crt-auth-enc", true, NULL);
-	mosquitto_tls_opts_set(mosq, 1, "tlsv1", NULL);
+	if(mosq == NULL){
+		return 1;
+	}
 	mosquitto_tls_set(mosq, "../ssl/test-root-ca.crt", "../ssl/certs", "../ssl/client-encrypted.crt", "../ssl/client-encrypted.key", password_callback);
 	mosquitto_connect_callback_set(mosq, on_connect);
 	mosquitto_disconnect_callback_set(mosq, on_disconnect);
@@ -49,6 +51,7 @@ int main(int argc, char *argv[])
 	while(run == -1){
 		mosquitto_loop(mosq, -1, 1);
 	}
+	mosquitto_destroy(mosq);
 
 	mosquitto_lib_cleanup();
 	return run;

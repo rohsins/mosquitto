@@ -1,40 +1,44 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Test whether a SUBSCRIBE to a topic with QoS 1 results in the correct SUBACK packet.
 
-import inspect, os, sys
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
+from mosq_test_helper import *
 
-import mosq_test
+def do_test(proto_ver):
+    rc = 1
+    mid = 79
+    keepalive = 60
+    connect_packet = mosq_test.gen_connect("unsubscribe-qos1-test", keepalive=keepalive, proto_ver=proto_ver)
+    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
 
-rc = 1
-mid = 79
-keepalive = 60
-connect_packet = mosq_test.gen_connect("unsubscribe-qos1-test", keepalive=keepalive)
-connack_packet = mosq_test.gen_connack(rc=0)
+    unsubscribe_packet = mosq_test.gen_unsubscribe(mid, "qos1/test", proto_ver=proto_ver)
+    if proto_ver == 5:
+        unsuback_packet = mosq_test.gen_unsuback(mid, proto_ver=proto_ver, reason_code=17)
+    else:
+        unsuback_packet = mosq_test.gen_unsuback(mid, proto_ver=proto_ver)
 
-unsubscribe_packet = mosq_test.gen_unsubscribe(mid, "qos1/test")
-unsuback_packet = mosq_test.gen_unsuback(mid)
+    port = mosq_test.get_port()
+    broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
 
-port = mosq_test.get_port()
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
+    try:
+        sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
+        mosq_test.do_send_receive(sock, unsubscribe_packet, unsuback_packet, "unsuback")
 
-try:
-    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
-    mosq_test.do_send_receive(sock, unsubscribe_packet, unsuback_packet, "unsuback")
+        rc = 0
 
-    rc = 0
+        sock.close()
+    except mosq_test.TestError:
+        pass
+    finally:
+        broker.terminate()
+        broker.wait()
+        (stdo, stde) = broker.communicate()
+        if rc:
+            print(stde.decode('utf-8'))
+            print("proto_ver=%d" % (proto_ver))
+            exit(rc)
 
-    sock.close()
-finally:
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
-    if rc:
-        print(stde)
 
-exit(rc)
-
+do_test(proto_ver=4)
+do_test(proto_ver=5)
+exit(0)

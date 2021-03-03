@@ -1,40 +1,46 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Test whether a PUBLISH to a topic with QoS 1 results in the correct PUBACK packet.
 
-import inspect, os, sys
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
+from mosq_test_helper import *
 
-import mosq_test
+def do_test(proto_ver):
+    rc = 1
+    mid = 19
+    keepalive = 60
+    connect_packet = mosq_test.gen_connect("pub-qos1-test", keepalive=keepalive, proto_ver=proto_ver)
+    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
 
-rc = 1
-mid = 19
-keepalive = 60
-connect_packet = mosq_test.gen_connect("pub-qos1-test", keepalive=keepalive)
-connack_packet = mosq_test.gen_connack(rc=0)
+    publish_packet = mosq_test.gen_publish("pub/qos1/test", qos=1, mid=mid, payload="message", proto_ver=proto_ver)
+    if proto_ver == 5:
+        puback_packet = mosq_test.gen_puback(mid, proto_ver=proto_ver, reason_code=mqtt5_rc.MQTT_RC_NO_MATCHING_SUBSCRIBERS)
+    else:
+        puback_packet = mosq_test.gen_puback(mid, proto_ver=proto_ver)
 
-publish_packet = mosq_test.gen_publish("pub/qos1/test", qos=1, mid=mid, payload="message")
-puback_packet = mosq_test.gen_puback(mid)
+    port = mosq_test.get_port()
+    broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
 
-port = mosq_test.get_port()
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
+    try:
+        sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
+        mosq_test.do_send_receive(sock, publish_packet, puback_packet, "puback")
 
-try:
-    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
-    mosq_test.do_send_receive(sock, publish_packet, puback_packet, "puback")
+        rc = 0
 
-    rc = 0
+        sock.close()
 
-    sock.close()
-finally:
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
-    if rc:
-        print(stde)
+    except mosq_test.TestError:
+        pass
+    finally:
+        broker.terminate()
+        broker.wait()
+        (stdo, stde) = broker.communicate()
+        if rc:
+            print(stde.decode('utf-8'))
+            print("proto_ver=%d" % (proto_ver))
+            exit(rc)
 
-exit(rc)
+
+do_test(proto_ver=4)
+do_test(proto_ver=5)
+exit(0)
 

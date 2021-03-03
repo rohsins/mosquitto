@@ -1,48 +1,51 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Test whether a SUBSCRIBE to a topic with an invalid UTF-8 topic fails
 
-import time
-import inspect, os, sys
-# From http://stackoverflow.com/questions/279237/python-import-a-module-from-a-folder
-cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"..")))
-if cmd_subfolder not in sys.path:
-    sys.path.insert(0, cmd_subfolder)
+from mosq_test_helper import *
 
-import struct
-import mosq_test
+def do_test(proto_ver):
+    rc = 1
+    mid = 53
+    keepalive = 60
+    connect_packet = mosq_test.gen_connect("subscribe-invalid-utf8", keepalive=keepalive, proto_ver=proto_ver)
+    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
 
-rc = 1
-mid = 53
-keepalive = 60
-connect_packet = mosq_test.gen_connect("subscribe-invalid-utf8", keepalive=keepalive)
-connack_packet = mosq_test.gen_connack(rc=0)
+    subscribe_packet = mosq_test.gen_subscribe(mid, "invalid/utf8", 0, proto_ver=proto_ver)
+    b = list(struct.unpack("B"*len(subscribe_packet), subscribe_packet))
+    b[13] = 0 # Topic should never have a 0x0000
+    subscribe_packet = struct.pack("B"*len(b), *b)
 
-subscribe_packet = mosq_test.gen_subscribe(mid, "invalid/utf8", 0)
-b = list(struct.unpack("B"*len(subscribe_packet), subscribe_packet))
-b[13] = 0 # Topic should never have a 0x0000
-subscribe_packet = struct.pack("B"*len(b), *b)
+    suback_packet = mosq_test.gen_suback(mid, 0, proto_ver=proto_ver)
 
-suback_packet = mosq_test.gen_suback(mid, 0)
+    port = mosq_test.get_port()
+    broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
 
-port = mosq_test.get_port()
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
+    try:
+        time.sleep(0.5)
 
-try:
-    time.sleep(0.5)
+        sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
+        if proto_ver == 4:
+            mosq_test.do_send_receive(sock, subscribe_packet, b"", "suback")
+        else:
+            disconnect_packet = mosq_test.gen_disconnect(proto_ver=5, reason_code = mqtt5_rc.MQTT_RC_MALFORMED_PACKET)
+            mosq_test.do_send_receive(sock, subscribe_packet, disconnect_packet, "suback")
 
-    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
-    mosq_test.do_send_receive(sock, subscribe_packet, "", "suback")
+        rc = 0
 
-    rc = 0
+        sock.close()
+    except mosq_test.TestError:
+        pass
+    finally:
+        broker.terminate()
+        broker.wait()
+        (stdo, stde) = broker.communicate()
+        if rc:
+            print(stde.decode('utf-8'))
+            print("proto_ver=%d" % (proto_ver))
+            exit(rc)
 
-    sock.close()
-finally:
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
-    if rc:
-        print(stde)
 
-exit(rc)
-
+do_test(proto_ver=4)
+do_test(proto_ver=5)
+exit(0)
