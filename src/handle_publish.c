@@ -311,7 +311,7 @@ int handle__publish(struct mosquitto *context)
 
 	if (db.config->server_topic && db.config->server_client_id && strcmp((char *) context->id, (char *) db.config->server_client_id) && db.config->serverContext != NULL) {
 
-		printf("");
+		printf("\n");
 		printf("client id: %s\n", context->id);
 		printf("username: %s\n", context->username);
 		printf("address: %s\n", context->address);
@@ -320,7 +320,7 @@ int handle__publish(struct mosquitto *context)
 		printf("qos: %d\n", stored->qos);
 		printf("retain: %d\n", stored->retain);
 		printf("payload: %.*s\n", stored->payloadlen, stored->payload);
-		printf("");
+		printf("\n");
 
 		static int username_length = -1;
 
@@ -361,10 +361,31 @@ int handle__publish(struct mosquitto *context)
 			);
 		}
 
-		send__publish(
-			db.config->serverContext, 0, db.config->server_topic, cpacket_length, cpacket, 0,
-			0, 0, 0, 0, 0
+		struct mosquitto *serverContextPointer;
+		serverContextPointer = mosquitto__calloc(1, sizeof(struct mosquitto));
+		// memcpy (serverContextPointer, db.config->serverContext, sizeof(struct mosquitto));
+
+		serverContextPointer->sock = db.config->serverContext->sock;
+
+		int result = -1;
+
+		result = send__real_publish(
+			db.config->serverContext, // struct mosquitto
+			0, // message id
+			db.config->server_topic, // topic
+			cpacket_length, // payloadlength
+			cpacket, // payload
+			0, // qos
+			false, // retain
+			false,  // dup
+			NULL,  // mosquitto_property *cmsg_props
+			NULL, // mosquitto_property *store_props
+			0 // expiry_interval
 		);
+
+		printf("output result: %d\n", result);
+
+		mosquitto__free(serverContextPointer);
 	}
 
 	switch(stored->qos){
