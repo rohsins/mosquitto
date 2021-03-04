@@ -45,20 +45,6 @@ int handle__publish(struct mosquitto *context)
 	size_t len;
 	uint16_t slen;
 	char *topic_mount;
-	// <<<<<<< HEAD
-	char *mesg;
-	struct mosquitto *context_alias;
-	char *cpacket;
-	int cpacket_length = 0;
-	struct sockaddr_in *client_sock_in;
-	socklen_t client_sock_len = sizeof(struct sockaddr_in);
-#ifdef WITH_BRIDGE
-	char *topic_temp;
-	int i;
-	struct mosquitto__bridge_topic *cur_topic;
-	bool match;
-#endif
-	// =======
 	mosquitto_property *properties = NULL;
 	mosquitto_property *p, *p_prev;
 	mosquitto_property *msg_properties_last;
@@ -66,7 +52,9 @@ int handle__publish(struct mosquitto *context)
 	int topic_alias = -1;
 	uint8_t reason_code = 0;
 	uint16_t mid = 0;
-	//>>>>>>> master
+
+	int cpacket_length = 0;
+	char cpacket[1024] = { 0 };
 
 	if(context->state != mosq_cs_active){
 		return MOSQ_ERR_PROTOCOL;
@@ -321,41 +309,65 @@ int handle__publish(struct mosquitto *context)
 		dup = 1;
 	}
 
-	//<<<<<<< HEAD
-	if (db->config->server_topic && db->config->server_client_id && db->config->server_sock != -1 && strcmp((char *) context->id, (char *) db->config->server_client_id)) {
-	        mesg = mosquitto__malloc(payloadlen + 1);
-	 	memcpy(mesg, &context->in_packet.payload[context->in_packet.pos - payloadlen], payloadlen);
-	 	mesg[payloadlen] = '\0';
+	if (db.config->server_topic && db.config->server_client_id && strcmp((char *) context->id, (char *) db.config->server_client_id) && db.config->serverContext != NULL) {
 
-	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(topic) + strlen(mesg) + strlen(context->username) + 97;
-		
-	 	cpacket = mosquitto__malloc(cpacket_length);
-	 	context_alias = mosquitto__malloc(sizeof(struct mosquitto));
-		client_sock_in = mosquitto__malloc(sizeof(struct sockaddr_in));
-		
-		memset(context_alias, 0, sizeof(struct mosquitto));
+		printf("");
+		printf("client id: %s\n", context->id);
+		printf("username: %s\n", context->username);
+		printf("address: %s\n", context->address);
+		printf("address: %d\n", context->remote_port);
+		printf("topic: %s\n", stored->topic);
+		printf("qos: %d\n", stored->qos);
+		printf("retain: %d\n", stored->retain);
+		printf("payload: %.*s\n", stored->payloadlen, stored->payload);
+		printf("");
 
-		getpeername(context->sock, (struct sockaddr_in *) client_sock_in, &client_sock_len);
+		static int username_length = -1;
 
-		if (payloadlen != 0) {
-		  cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain, mesg);
+		if (context->username == NULL) {
+			username_length = 0;
 		} else {
-		  cpacket_length = snprintf(cpacket, cpacket_length, "{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d}", context->id, context->address, ntohs(client_sock_in->sin_port), context->username, topic, qos, retain);
+			username_length = strlen(context->username);
 		}
 
-	 	context_alias->sock = db->config->server_sock;
-		context_alias->ssl = db->config->server_ssl;
-		
-	        send__real_publish(context_alias, context_alias->in_packet.mid, db->config->server_topic, cpacket_length, cpacket, 1, false, false);
-	 	mosquitto__free(cpacket);
-	 	mosquitto__free(context_alias);
-		mosquitto__free(client_sock_in);
+	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(stored->topic) + stored->payloadlen + username_length + 100;
+
+		if (stored->payloadlen) {
+		  	cpacket_length = snprintf(
+				cpacket, 
+				cpacket_length, 
+				"{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%.*s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", 
+				context->id, 
+				context->address, 
+				context->remote_port, 
+				username_length, context->username, 
+				stored->topic, 
+				stored->qos, 
+				stored->retain, 
+				stored->payload
+			);
+		} else {
+		  	cpacket_length = snprintf(
+				cpacket, 
+				cpacket_length, 
+				"{\"clientId\":\"%s\",\"address\":\"%s\",\"port\":%d,\"username\":\"%.*s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d}", 
+				context->id, 
+				context->address, 
+				context->remote_port, 
+				username_length, context->username, 
+				stored->topic, 
+				stored->qos, 
+				stored->retain
+			);
+		}
+
+		send__publish(
+			db.config->serverContext, 0, db.config->server_topic, cpacket_length, cpacket, 0,
+			0, 0, 0, 0, 0
+		);
 	}
 
-	//	switch(qos){
-	// =======
 	switch(stored->qos){
-	  // >>>>>>> master
 		case 0:
 			rc2 = sub__messages_queue(context->id, stored->topic, stored->qos, stored->retain, &stored);
 			if(rc2 > 0) rc = 1;

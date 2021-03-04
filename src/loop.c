@@ -287,19 +287,6 @@ void do_disconnect(struct mosquitto *context, int reason)
 	if(context->state == mosq_cs_disconnected){
 		return;
 	}
-
-	if (db->config->server_client_id) {
-	        if(context->id){
-		        id = context->id;
-		}else{
-		        id = "<unknown>";
-		}
-		if (!strcmp(id, db->config->server_client_id) && db->config->server_sock != -1) {
-		        db->config->server_sock = -1;
-			db->config->server_ssl = NULL;
-		}
-	}
-
 #ifdef WITH_WEBSOCKETS
 	if(context->wsi){
 		if(context->state == mosq_cs_duplicate){
@@ -382,6 +369,12 @@ void do_disconnect(struct mosquitto *context, int reason)
 				}else{
 					log__printf(NULL, MOSQ_LOG_NOTICE, "Client %s disconnected.", id);
 				}
+			}
+			if (!strcmp(id, db.config->server_client_id) && db.config->serverContext != NULL) {
+				log__printf(NULL, MOSQ_LOG_NOTICE, "Clearing server context ...");
+				memset(db.config->serverContext, 0, sizeof(struct mosquitto));
+				db.config->serverContext = NULL;
+				log__printf(NULL, MOSQ_LOG_NOTICE, "Server context cleared!");
 			}
 		}
 		mux__delete(context);

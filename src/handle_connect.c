@@ -189,15 +189,6 @@ int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint1
 		return rc;
 	}
 
-	if (db->config->server_client_id) {
-	        if (!strcmp((char *) client_id, (char *) db->config->server_client_id) && (db->config->server_sock == -1)) {
-			db->config->server_sock = context->sock;
-			if (context->ssl) {
-			        db->config->server_ssl = context->ssl;
-			}
-		}
-	}
-
 	if(db.config->connection_messages == true){
 		if(context->is_bridge){
 			if(context->username){
@@ -226,6 +217,16 @@ int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint1
 			log__printf(NULL, MOSQ_LOG_DEBUG, "\t%s", context->will->msg.topic);
 		} else {
 			log__printf(NULL, MOSQ_LOG_DEBUG, "No will message specified.");
+		}
+
+		if (db.config->server_client_id) {
+			if (!strcmp((char *) context->id, (char *) db.config->server_client_id) && (db.config->serverContext == NULL)) {
+				log__printf(NULL, MOSQ_LOG_NOTICE, "Saving server context ...");
+				db.config->serverContext = mosquitto__malloc(sizeof(struct mosquitto));
+				memset(db.config->serverContext, 0, sizeof(struct mosquitto));
+				memcpy(db.config->serverContext, context, sizeof(struct mosquitto));
+				log__printf(NULL, MOSQ_LOG_NOTICE, "Server context saved!");
+			}
 		}
 	}
 

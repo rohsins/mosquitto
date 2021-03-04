@@ -205,8 +205,7 @@ static void config__init_reload(struct mosquitto__config *config)
 	config->sys_interval = 10;
 	config->upgrade_outgoing_qos = false;
 	config->server_topic = NULL;
-	config->server_sock = -1;
-	config->server_ssl = NULL;
+	config->serverContext = NULL;
 	config->server_client_id = NULL;
 	
 	config__cleanup_plugins(config);
@@ -257,6 +256,9 @@ void config__cleanup(struct mosquitto__config *config)
 	int j;
 #endif
 
+	mosquitto__free(config->serverContext);
+	mosquitto__free(config->server_client_id);
+	mosquitto__free(config->server_topic);
 	mosquitto__free(config->clientid_prefixes);
 	mosquitto__free(config->persistence_location);
 	mosquitto__free(config->persistence_file);
