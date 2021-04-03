@@ -256,7 +256,6 @@ void config__cleanup(struct mosquitto__config *config)
 	int j;
 #endif
 
-	mosquitto__free(config->serverContext);
 	mosquitto__free(config->server_client_id);
 	mosquitto__free(config->server_topic);
 	mosquitto__free(config->clientid_prefixes);

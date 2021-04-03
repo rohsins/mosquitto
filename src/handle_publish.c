@@ -33,26 +33,6 @@ Contributors:
 #include "sys_tree.h"
 #include "util_mosq.h"
 
-void printMosquittoInfo (struct mosquitto *ctx, char *ctx_name) {
-	printf("\nMosquitto Info: %s ...\n", ctx_name);
-	printf("Protocol: %i\n", ctx->protocol);
-	printf("Address: %s\n", ctx->address);
-	printf("Username: %s\n", ctx->username);
-	printf("Password: %s\n", ctx->password);
-	printf("Keepalive: %i\n", ctx->keepalive);
-	printf("Last message id: %i\n", ctx->last_mid);
-	printf("Mosquitto client state: %d\n", ctx->state);
-	printf("Last messge in time: %i\n", ctx->last_msg_in);
-	printf("Next message out time: %i\n", ctx->next_msg_out);
-	printf("Ping time: %i\n", ctx->ping_t);
-	printf("Alias count: %d\n", ctx->alias_count);
-	printf("Clean start: %d\n", ctx->clean_start);
-	printf("Session expiry time: %i\n", ctx->session_expiry_time);
-	printf("Session expiry interval: %i\n", ctx->session_expiry_interval);
-	printf("\n");
-
-}
-
 int handle__publish(struct mosquitto *context)
 {
 	uint8_t dup;
@@ -341,19 +321,6 @@ int handle__publish(struct mosquitto *context)
 	}
 
 	if (db.config->server_topic && db.config->server_client_id && strcmp((char *) context->id, (char *) db.config->server_client_id) && db.config->serverContext != NULL) {
-	// if (true) {
-
-		// printf("\n");
-		// printf("client id: %s\n", context->id);
-		// printf("username: %s\n", context->username);
-		// printf("address: %s\n", context->address);
-		// printf("address: %d\n", context->remote_port);
-		// printf("topic: %s\n", stored->topic);
-		// printf("qos: %d\n", stored->qos);
-		// printf("retain: %d\n", stored->retain);
-		// printf("payload: %.*s\n", stored->payloadlen, stored->payload);
-		// printf("\n");
-
 		static int username_length = -1;
 
 		if (context->username == NULL) {
@@ -393,17 +360,7 @@ int handle__publish(struct mosquitto *context)
 			);
 		}
 
-		db.config->serverContext->state = context->state;
-		db.config->serverContext->last_msg_in = context->last_msg_in;
-		db.config->serverContext->next_msg_out = context->next_msg_out;
-		db.config->serverContext->keepalive = 0;
-		db.config->serverContext->next_msg_out = 0;
-		db.config->serverContext->session_expiry_interval = 0;
-		printMosquittoInfo(db.config->serverContext, "server");
-
-		int result = -1;
-
-		result = send__real_publish(
+		send__real_publish(
 			db.config->serverContext, // struct mosquitto
 			0, // message id
 			db.config->server_topic, // topic
@@ -416,8 +373,6 @@ int handle__publish(struct mosquitto *context)
 			NULL, // mosquitto_property *store_props
 			0 // expiry_interval
 		);
-
-		printf("output result: %d\n", result);
 	}
 
 	switch(stored->qos){

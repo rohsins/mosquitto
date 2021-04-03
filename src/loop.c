@@ -372,7 +372,6 @@ void do_disconnect(struct mosquitto *context, int reason)
 			}
 			if (!strcmp(id, db.config->server_client_id) && db.config->serverContext != NULL) {
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Clearing server context ...");
-				memset(db.config->serverContext, 0, sizeof(struct mosquitto));
 				db.config->serverContext = NULL;
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Server context cleared!");
 			}
