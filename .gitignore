@@ -87,3 +87,4 @@ www/cache/
 __pycache__
 
 .vscode/
+test.conf
