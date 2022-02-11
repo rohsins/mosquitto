@@ -92,7 +92,10 @@ int handle__publish(struct mosquitto *mosq)
 
 	if(mosq->protocol == mosq_p_mqtt5){
 		rc = property__read_all(CMD_PUBLISH, &mosq->in_packet, &properties);
-		if(rc) return rc;
+		if(rc){
+			message__cleanup(&message);
+			return rc;
+		}
 	}
 
 	message->msg.payloadlen = (int)(mosq->in_packet.remaining_length - mosq->in_packet.pos);
@@ -112,7 +115,7 @@ int handle__publish(struct mosquitto *mosq)
 	}
 	log__printf(mosq, MOSQ_LOG_DEBUG,
 			"Client %s received PUBLISH (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
-			mosq->id, message->dup, message->msg.qos, message->msg.retain,
+			SAFE_PRINT(mosq->id), message->dup, message->msg.qos, message->msg.retain,
 			message->msg.mid, message->msg.topic,
 			(long)message->msg.payloadlen);
 

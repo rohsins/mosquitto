@@ -4,12 +4,12 @@ Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -96,6 +96,9 @@ static void my_message_callback(struct mosquitto *mosq, void *obj, const struct 
 	}
 
 	print_message(&cfg, message, properties);
+	if(ferror(stdout)){
+		mosquitto_disconnect_v5(mosq, 0, cfg.disconnect_props);
+	}
 
 	if(cfg.msg_count>0){
 		msg_count++;
@@ -321,7 +324,7 @@ int main(int argc, char *argv[])
 
 	mosquitto_lib_init();
 
-	rand_init();
+	output_init();
 
 	rc = client_config_load(&cfg, CLIENT_SUB, argc, argv);
 	if(rc){

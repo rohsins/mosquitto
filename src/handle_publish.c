@@ -66,6 +66,12 @@ int handle__publish(struct mosquitto *context)
 
 	dup = (header & 0x08)>>3;
 	msg->qos = (header & 0x06)>>1;
+	if(dup == 1 && msg->qos == 0){
+		log__printf(NULL, MOSQ_LOG_INFO,
+				"Invalid PUBLISH (QoS=0 and DUP=1) from %s, disconnecting.", context->id);
+		db__msg_store_free(msg);
+		return MOSQ_ERR_MALFORMED_PACKET;
+	}
 	if(msg->qos == 3){
 		log__printf(NULL, MOSQ_LOG_INFO,
 				"Invalid QoS in PUBLISH from %s, disconnecting.", context->id);
@@ -114,11 +120,7 @@ int handle__publish(struct mosquitto *context)
 		rc = property__read_all(CMD_PUBLISH, &context->in_packet, &properties);
 		if(rc){
 			db__msg_store_free(msg);
-			if(rc == MOSQ_ERR_PROTOCOL){
-				return MOSQ_ERR_MALFORMED_PACKET;
-			}else{
-				return rc;
-			}
+			return rc;
 		}
 
 		p = properties;
@@ -204,7 +206,7 @@ int handle__publish(struct mosquitto *context)
 	if(mosquitto_pub_topic_check(msg->topic) != MOSQ_ERR_SUCCESS){
 		/* Invalid publish topic, just swallow it. */
 		db__msg_store_free(msg);
-		return MOSQ_ERR_PROTOCOL;
+		return MOSQ_ERR_MALFORMED_PACKET;
 	}
 
 	msg->payloadlen = context->in_packet.remaining_length - context->in_packet.pos;
@@ -246,8 +248,11 @@ int handle__publish(struct mosquitto *context)
 	/* Check for topic access */
 	rc = mosquitto_acl_check(context, msg->topic, msg->payloadlen, msg->payload, msg->qos, msg->retain, MOSQ_ACL_WRITE);
 	if(rc == MOSQ_ERR_ACL_DENIED){
-		log__printf(NULL, MOSQ_LOG_DEBUG, "Denied PUBLISH from %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))", context->id, dup, msg->qos, msg->retain, msg->source_mid, msg->topic, (long)msg->payloadlen);
-			reason_code = MQTT_RC_NOT_AUTHORIZED;
+		log__printf(NULL, MOSQ_LOG_DEBUG,
+				"Denied PUBLISH from %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
+				context->id, dup, msg->qos, msg->retain, msg->source_mid, msg->topic,
+				(long)msg->payloadlen);
+		reason_code = MQTT_RC_NOT_AUTHORIZED;
 		goto process_bad_message;
 	}else if(rc != MOSQ_ERR_SUCCESS){
 		db__msg_store_free(msg);
@@ -262,23 +267,22 @@ int handle__publish(struct mosquitto *context)
 		db__msg_store_free(msg);
 		return rc;
 #else
-		if(msg->qos == 1){
-			if (send__puback(context, msg->source_mid, MQTT_RC_SUCCESS, NULL)) {
-				return MOSQ_ERR_UNKNOWN;
-			}
-		}else if(msg->qos == 2){
-			if(send__pubrec(context, msg->source_mid, MQTT_RC_SUCCESS, NULL)){
-				return MOSQ_ERR_UNKNOWN;
-			}
-		}
-		db__msg_store_free(msg);
-		return MOSQ_ERR_SUCCESS;
+		reason_code = MQTT_RC_IMPLEMENTATION_SPECIFIC;
+		goto process_bad_message;
 #endif
 	}
 
 	{
 		rc = plugin__handle_message(context, msg);
-		if(rc){
+		if(rc == MOSQ_ERR_ACL_DENIED){
+			log__printf(NULL, MOSQ_LOG_DEBUG,
+					"Denied PUBLISH from %s (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
+					context->id, dup, msg->qos, msg->retain, msg->source_mid, msg->topic,
+					(long)msg->payloadlen);
+
+			reason_code = MQTT_RC_NOT_AUTHORIZED;
+			goto process_bad_message;
+		}else if(rc != MOSQ_ERR_SUCCESS){
 			db__msg_store_free(msg);
 			return rc;
 		}
@@ -301,7 +305,7 @@ int handle__publish(struct mosquitto *context)
 
 	if(!stored){
 		if(msg->qos == 0
-				|| db__ready_for_flight(&context->msgs_in, msg->qos)
+				|| db__ready_for_flight(context, mosq_md_in, msg->qos)
 				|| db__ready_for_queue(context, msg->qos, &context->msgs_in)){
 
 			dup = 0;
@@ -422,11 +426,7 @@ process_bad_message:
 				rc = send__puback(context, msg->source_mid, reason_code, NULL);
 				break;
 			case 2:
-				if(context->protocol == mosq_p_mqtt5){
-					rc = send__pubrec(context, msg->source_mid, reason_code, NULL);
-				}else{
-					rc = send__pubrec(context, msg->source_mid, 0, NULL);
-				}
+				rc = send__pubrec(context, msg->source_mid, reason_code, NULL);
 				break;
 		}
 		db__msg_store_free(msg);

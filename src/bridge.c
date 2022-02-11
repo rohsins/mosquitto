@@ -4,12 +4,12 @@ Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -63,7 +63,7 @@ void bridge__start_all(void)
 
 	for(i=0; i<db.config->bridge_count; i++){
 		if(bridge__new(&(db.config->bridges[i])) > 0){
-			log__printf(NULL, MOSQ_LOG_WARNING, "Warning: Unable to connect to bridge %s.", 
+			log__printf(NULL, MOSQ_LOG_WARNING, "Warning: Unable to connect to bridge %s.",
 					db.config->bridges[i].name);
 		}
 	}
@@ -92,7 +92,7 @@ int bridge__new(struct mosquitto__bridge *bridge)
 			return MOSQ_ERR_NOMEM;
 		}
 		new_context->id = local_id;
-		HASH_ADD_KEYPTR(hh_id, db.contexts_by_id, new_context->id, strlen(new_context->id), new_context);
+		context__add_to_by_id(new_context);
 	}
 	new_context->bridge = bridge;
 	new_context->is_bridge = true;
@@ -245,6 +245,7 @@ int bridge__connect_step1(struct mosquitto *context)
 	rc = net__try_connect_step1(context, context->bridge->addresses[context->bridge->cur_address].address);
 	if(rc > 0 ){
 		if(rc == MOSQ_ERR_TLS){
+			mux__delete(context);
 			net__socket_close(context);
 			return rc; /* Error already printed */
 		}else if(rc == MOSQ_ERR_ERRNO){
@@ -270,6 +271,7 @@ int bridge__connect_step2(struct mosquitto *context)
 	rc = net__try_connect_step2(context, context->bridge->addresses[context->bridge->cur_address].port, &context->sock);
 	if(rc > 0){
 		if(rc == MOSQ_ERR_TLS){
+			mux__delete(context);
 			net__socket_close(context);
 			return rc; /* Error already printed */
 		}else if(rc == MOSQ_ERR_ERRNO){
@@ -285,6 +287,7 @@ int bridge__connect_step2(struct mosquitto *context)
 
 	if(rc == MOSQ_ERR_CONN_PENDING){
 		mosquitto__set_state(context, mosq_cs_connect_pending);
+		mux__add_out(context);
 	}
 	return rc;
 }
@@ -297,6 +300,7 @@ int bridge__connect_step3(struct mosquitto *context)
 	rc = net__socket_connect_step3(context, context->bridge->addresses[context->bridge->cur_address].address);
 	if(rc > 0){
 		if(rc == MOSQ_ERR_TLS){
+			mux__delete(context);
 			net__socket_close(context);
 			return rc; /* Error already printed */
 		}else if(rc == MOSQ_ERR_ERRNO){
@@ -325,6 +329,7 @@ int bridge__connect_step3(struct mosquitto *context)
 		}else if(rc == MOSQ_ERR_EAI){
 			log__printf(NULL, MOSQ_LOG_ERR, "Error creating bridge: %s.", gai_strerror(errno));
 		}
+		mux__delete(context);
 		net__socket_close(context);
 		return rc;
 	}
@@ -436,6 +441,7 @@ int bridge__connect(struct mosquitto *context)
 
 	if(rc > 0){
 		if(rc == MOSQ_ERR_TLS){
+			mux__delete(context);
 			net__socket_close(context);
 			return rc; /* Error already printed */
 		}else if(rc == MOSQ_ERR_ERRNO){
@@ -447,6 +453,7 @@ int bridge__connect(struct mosquitto *context)
 		return rc;
 	}else if(rc == MOSQ_ERR_CONN_PENDING){
 		mosquitto__set_state(context, mosq_cs_connect_pending);
+		mux__add_out(context);
 	}
 
 	HASH_ADD(hh_sock, db.contexts_by_sock, sock, sizeof(context->sock), context);
@@ -464,6 +471,7 @@ int bridge__connect(struct mosquitto *context)
 		}else if(rc2 == MOSQ_ERR_EAI){
 			log__printf(NULL, MOSQ_LOG_ERR, "Error creating bridge: %s.", gai_strerror(errno));
 		}
+		mux__delete(context);
 		net__socket_close(context);
 		return rc2;
 	}
@@ -641,6 +649,7 @@ void bridge__packet_cleanup(struct mosquitto *context)
 	}
 	context->out_packet = NULL;
 	context->out_packet_last = NULL;
+	context->out_packet_count = 0;
 
 	packet__cleanup(&(context->in_packet));
 }
@@ -748,6 +757,7 @@ void bridge_check(void)
 						COMPAT_CLOSE(context->bridge->primary_retry_sock);
 						context->bridge->primary_retry_sock = INVALID_SOCKET;
 						context->bridge->primary_retry = 0;
+						mux__delete(context);
 						net__socket_close(context);
 						context->bridge->cur_address = 0;
 					}
@@ -758,6 +768,7 @@ void bridge_check(void)
 							COMPAT_CLOSE(context->bridge->primary_retry_sock);
 							context->bridge->primary_retry_sock = INVALID_SOCKET;
 							context->bridge->primary_retry = 0;
+							mux__delete(context);
 							net__socket_close(context);
 							context->bridge->cur_address = context->bridge->address_count-1;
 						}else{
@@ -837,7 +848,7 @@ void bridge_check(void)
 					{
 						rc = bridge__connect(context);
 						context->bridge->restart_t = 0;
-						if(rc == MOSQ_ERR_SUCCESS){
+						if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_CONN_PENDING){
 							if(context->bridge->round_robin == false && context->bridge->cur_address != 0){
 								context->bridge->primary_retry = db.now_s + 5;
 							}

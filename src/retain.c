@@ -106,7 +106,10 @@ int retain__store(const char *topic, struct mosquitto_msg_store *stored, char **
 		 * they aren't for $SYS. */
 		db.persistence_changes++;
 	}
+#else
+	UNUSED(topic);
 #endif
+
 	if(retainhier->retained){
 		db__msg_store_ref_dec(&retainhier->retained);
 #ifdef WITH_SYS_TREE
@@ -261,6 +264,10 @@ int retain__queue(struct mosquitto *context, const char *sub, uint8_t sub_qos, u
 
 	assert(context);
 	assert(sub);
+
+	if(!strncmp(sub, "$share/", strlen("$share/"))){
+		return MOSQ_ERR_SUCCESS;
+	}
 
 	rc = sub__topic_tokenise(sub, &local_sub, &split_topics, NULL);
 	if(rc) return rc;

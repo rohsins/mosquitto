@@ -4,12 +4,12 @@ Copyright (c) 2010-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -71,6 +71,8 @@ typedef SOCKET mosq_sock_t;
 #else
 typedef int mosq_sock_t;
 #endif
+
+#define SAFE_PRINT(A) (A)?(A):"null"
 
 enum mosquitto_msg_direction {
 	mosq_md_in = 0,
@@ -190,10 +192,14 @@ struct mosquitto_msg_data{
 #ifdef WITH_BROKER
 	struct mosquitto_client_msg *inflight;
 	struct mosquitto_client_msg *queued;
-	long msg_bytes;
-	long msg_bytes12;
-	int msg_count;
-	int msg_count12;
+	long inflight_bytes;
+	long inflight_bytes12;
+	int inflight_count;
+	int inflight_count12;
+	long queued_bytes;
+	long queued_bytes12;
+	int queued_count;
+	int queued_count12;
 #else
 	struct mosquitto_message_all *inflight;
 	int queue_len;
@@ -237,11 +243,15 @@ struct mosquitto {
 	struct mosquitto__alias *aliases;
 	struct will_delay_list *will_delay_entry;
 	int alias_count;
+	int out_packet_count;
 	uint32_t will_delay_interval;
 	time_t will_delay_time;
 #ifdef WITH_TLS
 	SSL *ssl;
 	SSL_CTX *ssl_ctx;
+#ifndef WITH_BROKER
+	SSL_CTX *user_ssl_ctx;
+#endif
 	char *tls_cafile;
 	char *tls_capath;
 	char *tls_certfile;
@@ -277,7 +287,7 @@ struct mosquitto {
 	time_t session_expiry_time;
 	uint32_t session_expiry_interval;
 #ifdef WITH_BROKER
-	bool removed_from_by_id; /* True if removed from by_id hash */
+	bool in_by_id;
 	bool is_dropping;
 	bool is_bridge;
 	struct mosquitto__bridge *bridge;
@@ -286,11 +296,9 @@ struct mosquitto {
 	struct mosquitto__acl_user *acl_list;
 	struct mosquitto__listener *listener;
 	struct mosquitto__packet *out_packet_last;
-	struct mosquitto__subhier **subs;
-	struct mosquitto__subshared_ref **shared_subs;
+	struct mosquitto__client_sub **subs;
 	char *auth_method;
 	int sub_count;
-	int shared_sub_count;
 #  ifndef WITH_EPOLL
 	int pollfd_index;
 #  endif

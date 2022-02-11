@@ -32,11 +32,13 @@ Contributors:
 #  include <aclapi.h>
 #  include <io.h>
 #  include <lmcons.h>
+#  include <fcntl.h>
 #else
 #  include <sys/stat.h>
 #endif
 
 #include "misc_mosq.h"
+#include "logging_mosq.h"
 
 
 FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
@@ -44,6 +46,8 @@ FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
 #ifdef WIN32
 	char buf[4096];
 	int rc;
+	int flags = 0;
+
 	rc = ExpandEnvironmentStringsA(path, buf, 4096);
 	if(rc == 0 || rc > 4096){
 		return NULL;
@@ -57,13 +61,17 @@ FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
 			DWORD ulen = UNLEN;
 			SECURITY_DESCRIPTOR sd;
 			DWORD dwCreationDisposition;
+			int fd;
+			FILE *fptr;
 
 			switch(mode[0]){
 				case 'a':
 					dwCreationDisposition = OPEN_ALWAYS;
+					flags = _O_APPEND;
 					break;
 				case 'r':
 					dwCreationDisposition = OPEN_EXISTING;
+					flags = _O_RDONLY;
 					break;
 				case 'w':
 					dwCreationDisposition = CREATE_ALWAYS;
@@ -85,6 +93,7 @@ FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
 				return NULL;
 			}
 
+			memset(&sec, 0, sizeof(sec));
 			sec.nLength = sizeof(SECURITY_ATTRIBUTES);
 			sec.bInheritHandle = FALSE;
 			sec.lpSecurityDescriptor = &sd;
@@ -97,15 +106,18 @@ FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
 
 			LocalFree(pacl);
 
-			int fd = _open_osfhandle((intptr_t)hfile, 0);
+			fd = _open_osfhandle((intptr_t)hfile, flags);
 			if (fd < 0) {
 				return NULL;
 			}
 
-			FILE *fptr = _fdopen(fd, mode);
+			fptr = _fdopen(fd, mode);
 			if (!fptr) {
 				_close(fd);
 				return NULL;
+			}
+			if(mode[0] == 'a'){
+				fseek(fptr, 0, SEEK_END);
 			}
 			return fptr;
 
@@ -114,6 +126,18 @@ FILE *mosquitto__fopen(const char *path, const char *mode, bool restrict_read)
 		}
 	}
 #else
+	if(mode[0] == 'r'){
+		struct stat statbuf;
+		if(stat(path, &statbuf) < 0){
+			return NULL;
+		}
+
+		if(!S_ISREG(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode)){
+			log__printf(NULL, MOSQ_LOG_ERR, "Error: %s is not a file.", path);
+			return NULL;
+		}
+	}
+
 	if (restrict_read) {
 		FILE *fptr;
 		mode_t old_mask;
@@ -154,6 +178,7 @@ char *fgets_extending(char **buf, int *buflen, FILE *stream)
 	char endchar;
 	int offset = 0;
 	char *newbuf;
+	size_t len;
 
 	if(stream == NULL || buf == NULL || buflen == NULL || *buflen < 1){
 		return NULL;
@@ -161,11 +186,15 @@ char *fgets_extending(char **buf, int *buflen, FILE *stream)
 
 	do{
 		rc = fgets(&((*buf)[offset]), (*buflen)-offset, stream);
-		if(feof(stream)){
+		if(feof(stream) || rc == NULL){
 			return rc;
 		}
 
-		endchar = (*buf)[strlen(*buf)-1];
+		len = strlen(*buf);
+		if(len == 0){
+			return rc;
+		}
+		endchar = (*buf)[len-1];
 		if(endchar == '\n'){
 			return rc;
 		}

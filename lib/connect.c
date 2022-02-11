@@ -4,12 +4,12 @@ Copyright (c) 2010-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -192,7 +192,7 @@ static int mosquitto__reconnect(struct mosquitto *mosq, bool blocking)
 	message__reconnect_reset(mosq, false);
 
 	if(mosq->sock != INVALID_SOCKET){
-        net__socket_close(mosq); //close socket
+        net__socket_close(mosq);
     }
 
 #ifdef WITH_SOCKS
@@ -276,6 +276,7 @@ void do_client_disconnect(struct mosquitto *mosq, int reason_code, const mosquit
 		if(!mosq->out_packet){
 			mosq->out_packet_last = NULL;
 		}
+		mosq->out_packet_count--;
 	}
 	pthread_mutex_unlock(&mosq->out_packet_mutex);
 

@@ -4,12 +4,12 @@ Copyright (c) 2012-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -105,6 +105,15 @@ static FILE *mpw_tmpfile(void)
 	return fdopen(fd, "w+");
 }
 #endif
+
+int log__printf(void *mosq, unsigned int level, const char *fmt, ...)
+{
+	/* Stub for misc_mosq.c */
+	UNUSED(mosq);
+	UNUSED(level);
+	UNUSED(fmt);
+	return 0;
+}
 
 
 static void print_usage(void)
@@ -341,7 +350,7 @@ static int copy_contents(FILE *src, FILE *dest)
 
 	rewind(src);
 	rewind(dest);
-	
+
 #ifdef WIN32
 	_chsize(fileno(dest), 0);
 #else

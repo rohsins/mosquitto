@@ -4,12 +4,12 @@ Copyright (c) 2016-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -80,6 +80,8 @@ void *mosquitto_client_certificate(const struct mosquitto *client)
 		return NULL;
 	}
 #else
+	UNUSED(client);
+
 	return NULL;
 #endif
 }
@@ -167,7 +169,7 @@ int mosquitto_broker_publish(
 
 	msg = mosquitto__malloc(sizeof(struct mosquitto_message_v5));
 	if(msg == NULL) return MOSQ_ERR_NOMEM;
-	
+
 	msg->next = NULL;
 	msg->prev = NULL;
 	if(clientid){
@@ -263,6 +265,33 @@ int mosquitto_set_username(struct mosquitto *client, const char *username)
 }
 
 
+/* Check to see whether durable clients still have rights to their subscriptions. */
+static void check_subscription_acls(struct mosquitto *context)
+{
+	int i;
+	int rc;
+	uint8_t reason;
+
+	for(i=0; i<context->sub_count; i++){
+		if(context->subs[i] == NULL){
+			continue;
+		}
+		rc = mosquitto_acl_check(context,
+				context->subs[i]->topic_filter,
+				0,
+				NULL,
+				0, /* FIXME */
+				false,
+				MOSQ_ACL_SUBSCRIBE);
+
+		if(rc != MOSQ_ERR_SUCCESS){
+			sub__remove(context, context->subs[i]->topic_filter, db.subs, &reason);
+		}
+	}
+}
+
+
+
 static void disconnect_client(struct mosquitto *context, bool with_will)
 {
 	if(context->protocol == mosq_p_mqtt5){
@@ -270,6 +299,9 @@ static void disconnect_client(struct mosquitto *context, bool with_will)
 	}
 	if(with_will == false){
 		mosquitto__set_state(context, mosq_cs_disconnecting);
+	}
+	if(context->session_expiry_interval > 0){
+		check_subscription_acls(context);
 	}
 	do_disconnect(context, MOSQ_ERR_ADMINISTRATIVE_ACTION);
 }

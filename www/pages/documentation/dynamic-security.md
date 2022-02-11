@@ -25,7 +25,7 @@ installations, but will not be activated by default.
 ## Concepts
 
 This section describes the concepts of how the plugin operates. If you want to
-find out how to use the plugin features, look in the [Usage] section below.
+find out how to use the plugin features, look in the [Installation] section below.
 
 The plugin allows you to create three main objects, `clients`, `groups`, and `roles`.
 
@@ -167,7 +167,7 @@ messages on a specific topic within that hierarchy like 'topic/secret'.
 
 The different events have ACL types associated with them, and it is these ACLs
 that you will add to your roles. Each ACL has a `topic`, a `priority`, and can
-be set to `allow` or `deny`. 
+be set to `allow` or `deny`.
 
 The `publishClientSend` and `publishClientReceive` ACL types map directly to
 the events of the same name. The topic can contain wildcards, so allowing send
@@ -280,7 +280,7 @@ If allowed, anything connecting without a username will be assigned to a group
 that you define. By assigning roles to that group, you can control what
 anonymous devices can access.
 
-## Initial configuration
+## Installation
 
 To use the Dynamic Security plugin, it must be configured in the broker and an
 initial plugin configuration must be generated.
@@ -299,11 +299,18 @@ plugin path\to\mosquitto_dynamic_security.dll
 plugin_opt_config_file path\to\dynamic-security.json
 ```
 
+On Linux you would expect the plugin library to be installed to
+`/usr/lib/x86_64-linux-gnu/mosquitto_dynamic_security.so` or a similar path,
+but this will vary depending on the particular distribution and hardware in
+use.
+
 It is recommended to use `per_listener_settings false` with this plugin, so all
 listeners use the same authentication and access control.
 
 The `dynamic-security.json` file is where the plugin configuration will be
-stored. To generate an initial file, use the `mosquitto_ctrl` utility.
+stored. This file will be updated each time you make client/group/role changes,
+during normal operation the configuration stays in memory. To generate an
+initial file, use the `mosquitto_ctrl` utility.
 
 ```
 mosquitto_ctrl dynsec init path/to/dynamic-security.json admin-user
@@ -338,7 +345,18 @@ the `#` hierarchy by default. You are strongly encouraged to keep the admin
 user purely for administering the plugin, and create other clients for your
 application.
 
-## Using mosquitto_ctrl with a running broker
+## Usage
+
+All control of the plugin after initial installation is through the MQTT topic
+API at `$CONTROL/dynamic-security/v1`. This allows integrations to be built,
+but isn't the best choice for people to use directly. The `mosquitto_ctrl`
+command provided with Mosquitto implements support for the dynamic security
+plugin API, as described below. Other options include the [Management Center
+for Mosquitto](https://docs.cedalo.com/latest/) which is an open source web
+based tool for controlling the plugin and other features. The Management Center
+is not part of the Mosquitto project.
+
+### Using mosquitto_ctrl with a running broker
 
 The initial configuration is the only time that `mosquitto_ctrl` does not
 connect to a broker to carry out the configuration. All other commands require
@@ -481,7 +499,7 @@ The initial configuration sets the default ACL type behaviours to:
 * `subscribe`: deny
 * `unsubscribe`: allow
 
-If you wish to change these, use `mosquitto_ctrl`. 
+If you wish to change these, use `mosquitto_ctrl`.
 
 ```
 mosquitto_ctrl <options> dynsec setDefaultACLAccess publishClientSend deny

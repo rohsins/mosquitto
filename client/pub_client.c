@@ -4,12 +4,12 @@ Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -182,7 +182,7 @@ void my_connect_callback(struct mosquitto *mosq, void *obj, int result, int flag
 			}else{
 				err_printf(&cfg, "Connection error: %s\n", mosquitto_connack_string(result));
 			}
-			// let the loop know that this is an unrecoverable connection
+			/* let the loop know that this is an unrecoverable connection */
 			status = STATUS_NOHOPE;
 		}
 	}
@@ -268,9 +268,8 @@ static int pub_stdin_line_loop(struct mosquitto *mosq)
 					line_buf[buf_len_actual-1] = '\0';
 					rc = my_publish(mosq, &mid_sent, cfg.topic, buf_len_actual-1, line_buf, cfg.qos, cfg.retain);
 					pos = 0;
-					if(rc){
-						err_printf(&cfg, "Error: Publish returned %d.\n", rc);
-						if(cfg.qos>0) return rc;
+					if(rc != MOSQ_ERR_SUCCESS && rc != MOSQ_ERR_NO_CONN){
+						return rc;
 					}
 					break;
 				}else{
@@ -288,7 +287,6 @@ static int pub_stdin_line_loop(struct mosquitto *mosq)
 			if(pos != 0){
 				rc = my_publish(mosq, &mid_sent, cfg.topic, buf_len_actual, line_buf, cfg.qos, cfg.retain);
 				if(rc){
-					err_printf(&cfg, "Error: Publish returned %d.\n", rc);
 					if(cfg.qos>0) return rc;
 				}
 			}
@@ -357,7 +355,7 @@ static int pub_other_loop(struct mosquitto *mosq)
 					rc = my_publish(mosq, &mid_sent, cfg.topic, 0, NULL, cfg.qos, cfg.retain);
 					break;
 			}
-			if(rc){
+			if(rc != MOSQ_ERR_SUCCESS && rc != MOSQ_ERR_NO_CONN){
 				err_printf(&cfg, "Error sending repeat publish: %s", mosquitto_strerror(rc));
 			}
 		}

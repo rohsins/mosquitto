@@ -4,12 +4,12 @@ Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -309,6 +309,7 @@ struct mosquitto__config {
 	struct mosquitto__security_options security_options;
 };
 
+
 struct mosquitto__subleaf {
 	struct mosquitto__subleaf *prev;
 	struct mosquitto__subleaf *next;
@@ -317,12 +318,6 @@ struct mosquitto__subleaf {
 	uint8_t qos;
 	bool no_local;
 	bool retain_as_published;
-};
-
-
-struct mosquitto__subshared_ref {
-	struct mosquitto__subhier *hier;
-	struct mosquitto__subshared *shared;
 };
 
 
@@ -340,6 +335,12 @@ struct mosquitto__subhier {
 	struct mosquitto__subshared *shared;
 	char *topic;
 	uint16_t topic_len;
+};
+
+struct mosquitto__client_sub {
+	struct mosquitto__subhier *hier;
+	struct mosquitto__subshared *shared;
+	char topic_filter[];
 };
 
 struct sub__token {
@@ -662,7 +663,7 @@ void db__msg_store_clean(void);
 void db__msg_store_compact(void);
 void db__msg_store_free(struct mosquitto_msg_store *store);
 int db__message_reconnect_reset(struct mosquitto *context);
-bool db__ready_for_flight(struct mosquitto_msg_data *msgs, int qos);
+bool db__ready_for_flight(struct mosquitto *context, enum mosquitto_msg_direction dir, int qos);
 bool db__ready_for_queue(struct mosquitto *context, int qos, struct mosquitto_msg_data *msg_data);
 void sys_tree__init(void);
 void sys_tree__update(int interval, time_t start_time);
@@ -670,6 +671,8 @@ int db__message_write_inflight_out_all(struct mosquitto *context);
 int db__message_write_inflight_out_latest(struct mosquitto *context);
 int db__message_write_queued_out(struct mosquitto *context);
 int db__message_write_queued_in(struct mosquitto *context);
+void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg);
+void db__msg_add_to_queued_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg);
 
 /* ============================================================
  * Subscription functions
@@ -692,6 +695,7 @@ void context__disconnect(struct mosquitto *context);
 void context__add_to_disused(struct mosquitto *context);
 void context__free_disused(void);
 void context__send_will(struct mosquitto *context);
+void context__add_to_by_id(struct mosquitto *context);
 void context__remove_from_by_id(struct mosquitto *context);
 
 int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint16_t auth_data_out_len);

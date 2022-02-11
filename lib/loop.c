@@ -4,12 +4,12 @@ Copyright (c) 2010-2020 Roger Light <roger@atchoo.org>
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
 and Eclipse Distribution License v1.0 which accompany this distribution.
- 
+
 The Eclipse Public License is available at
    https://www.eclipse.org/legal/epl-2.0/
 and the Eclipse Distribution License is available at
   http://www.eclipse.org/org/documents/edl-v10.php.
- 
+
 SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
 
 Contributors:
@@ -204,9 +204,9 @@ static int interruptible_sleep(struct mosquitto *mosq, time_t reconnect_delay)
 	int maxfd = 0;
 
 #ifndef WIN32
-	while(read(mosq->sockpairR, &pairbuf, 1) > 0);
+	while(mosq->sockpairR != INVALID_SOCKET && read(mosq->sockpairR, &pairbuf, 1) > 0);
 #else
-	while(recv(mosq->sockpairR, &pairbuf, 1, 0) > 0);
+	while(mosq->sockpairR != INVALID_SOCKET && recv(mosq->sockpairR, &pairbuf, 1, 0) > 0);
 #endif
 
 	local_timeout.tv_sec = reconnect_delay;
@@ -373,7 +373,11 @@ int mosquitto_loop_read(struct mosquitto *mosq, int max_packets)
 
 #ifdef WITH_TLS
 	if(mosq->want_connect){
-		return net__socket_connect_tls(mosq);
+		rc = net__socket_connect_tls(mosq);
+		if (MOSQ_ERR_TLS == rc){
+			rc = mosquitto__loop_rc_handle(mosq, rc);
+		}
+		return rc;
 	}
 #endif
 
