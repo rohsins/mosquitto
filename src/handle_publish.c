@@ -33,6 +33,7 @@ Contributors:
 #include "sys_tree.h"
 #include "util_mosq.h"
 
+
 int handle__publish(struct mosquitto *context)
 {
 	uint8_t dup;
@@ -51,9 +52,6 @@ int handle__publish(struct mosquitto *context)
 	int topic_alias = -1;
 	uint8_t reason_code = 0;
 	uint16_t mid = 0;
-
-	int cpacket_length = 0;
-	char cpacket[1024] = { 0 };
 
 	if(context->state != mosq_cs_active){
 		return MOSQ_ERR_PROTOCOL;
@@ -324,7 +322,7 @@ int handle__publish(struct mosquitto *context)
 		dup = 1;
 	}
 
-	if (db.config->server_topic && db.config->server_client_id && strcmp((char *) context->id, (char *) db.config->server_client_id) && db.config->serverContext != NULL) {
+	if ((db.config->serverContext != NULL) && strcmp((char *) context->id, (char *) db.config->server_client_id)) {
 		static int username_length = -1;
 
 		if (context->username == NULL) {
@@ -333,7 +331,8 @@ int handle__publish(struct mosquitto *context)
 			username_length = strlen(context->username);
 		}
 
-	 	cpacket_length = strlen(context->id) + strlen(context->address) + strlen(stored->topic) + stored->payloadlen + username_length + 100;
+		int cpacket_length = strlen(context->address) + strlen(context->id) + username_length  + strlen(stored->topic) + stored->payloadlen + 100;
+		char cpacket[cpacket_length];
 
 		if (stored->payloadlen) {
 		  	cpacket_length = snprintf(

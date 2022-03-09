@@ -245,7 +245,7 @@ int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint1
 		}
 
 		if (db.config->server_client_id) {
-			if (!strcmp((char *) context->id, (char *) db.config->server_client_id) && (db.config->serverContext == NULL)) {
+			if ((db.config->serverContext == NULL) && (db.config->server_topic != NULL) && !strcmp((char *) context->id, (char *) db.config->server_client_id)) {
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Saving server context ...");
 				db.config->serverContext = context;
 				log__printf(NULL, MOSQ_LOG_NOTICE, "Server context saved!");
