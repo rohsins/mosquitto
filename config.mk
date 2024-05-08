@@ -120,6 +120,9 @@ WITH_JEMALLOC:=no
 # probably of no particular interest to end users.
 WITH_XTREPORT=no
 
+# Build using clang and with address sanitiser enabled
+WITH_ASAN=no
+
 # =============================================================================
 # End of user configuration
 # =============================================================================
@@ -127,7 +130,7 @@ WITH_XTREPORT=no
 
 # Also bump lib/mosquitto.h, CMakeLists.txt,
 # installer/mosquitto.nsi, installer/mosquitto64.nsi
-VERSION=2.0.14
+VERSION=2.0.18
 
 # Client library SO version. Bump if incompatible API/ABI changes are made.
 SOVERSION=1
@@ -150,6 +153,12 @@ ifeq ($(UNAME),SunOS)
 	endif
 else
 	CFLAGS?=-Wall -ggdb -O2 -Wconversion -Wextra
+endif
+
+ifeq ($(WITH_ASAN),yes)
+	CC:=clang
+	CFLAGS+=-fsanitize=address
+	LDFLAGS+=-fsanitize=address
 endif
 
 STATIC_LIB_DEPS:=
@@ -254,10 +263,10 @@ ifeq ($(WITH_TLS),yes)
 endif
 
 ifeq ($(WITH_THREADING),yes)
-	LIB_LIBADD:=$(LIB_LIBADD) -lpthread
+	LIB_LDFLAGS:=$(LIB_LDFLAGS) -pthread
 	LIB_CPPFLAGS:=$(LIB_CPPFLAGS) -DWITH_THREADING
 	CLIENT_CPPFLAGS:=$(CLIENT_CPPFLAGS) -DWITH_THREADING
-	STATIC_LIB_DEPS:=$(STATIC_LIB_DEPS) -lpthread
+	STATIC_LIB_DEPS:=$(STATIC_LIB_DEPS) -pthread
 endif
 
 ifeq ($(WITH_SOCKS),yes)

@@ -205,6 +205,10 @@ int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint1
 		found_context->clean_start = true;
 		found_context->session_expiry_interval = 0;
 		mosquitto__set_state(found_context, mosq_cs_duplicate);
+
+		if(found_context->protocol == mosq_p_mqtt5){
+			send__disconnect(found_context, MQTT_RC_SESSION_TAKEN_OVER, NULL);
+		}
 		do_disconnect(found_context, MOSQ_ERR_SUCCESS);
 	}
 
@@ -322,6 +326,7 @@ int connect__on_authorised(struct mosquitto *context, void *auth_data_out, uint1
 	rc = send__connack(context, connect_ack, CONNACK_ACCEPTED, connack_props);
 	mosquitto_property_free_all(&connack_props);
 	if(rc) return rc;
+	db__expire_all_messages(context);
 	rc = db__message_write_queued_out(context);
 	if(rc) return rc;
 	rc = db__message_write_inflight_out_all(context);
@@ -378,6 +383,10 @@ static int will__read(struct mosquitto *context, const char *client_id, struct m
 		will_struct->msg.topic = will_topic_mount;
 	}
 
+	if(!strncmp(will_struct->msg.topic, "$CONTROL/", strlen("$CONTROL/"))){
+		rc = MOSQ_ERR_ACL_DENIED;
+		goto error_cleanup;
+	}
 	rc = mosquitto_pub_topic_check(will_struct->msg.topic);
 	if(rc) goto error_cleanup;
 
@@ -466,9 +475,6 @@ int handle__connect(struct mosquitto *context)
 		rc = MOSQ_ERR_PROTOCOL;
 		goto handle_connect_error;
 	}
-	if(context->in_packet.command != CMD_CONNECT){
-		return MOSQ_ERR_MALFORMED_PACKET;
-	}
 
 	/* Read protocol name as length then bytes rather than with read_string
 	 * because the length is fixed and we can check that. Removes the need
@@ -535,6 +541,9 @@ int handle__connect(struct mosquitto *context)
 		}
 		rc = MOSQ_ERR_PROTOCOL;
 		goto handle_connect_error;
+	}
+	if((protocol_version&0x7F) != PROTOCOL_VERSION_v31 && context->in_packet.command != CMD_CONNECT){
+		return MOSQ_ERR_MALFORMED_PACKET;
 	}
 
 	if(packet__read_byte(&context->in_packet, &connect_flags)){
@@ -793,11 +802,22 @@ int handle__connect(struct mosquitto *context)
 						rc = MOSQ_ERR_AUTH;
 						goto handle_connect_error;
 					}
+					const char *new_username;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-					context->username = mosquitto__strdup((char *) ASN1_STRING_data(name_asn1));
+					new_username = (const char *) ASN1_STRING_data(name_asn1);
 #else
-					context->username = mosquitto__strdup((char *) ASN1_STRING_get0_data(name_asn1));
+					new_username = (const char *) ASN1_STRING_get0_data(name_asn1);
 #endif
+					if(mosquitto_validate_utf8(new_username, (int)strlen(new_username))){
+						if(context->protocol == mosq_p_mqtt5){
+							send__connack(context, 0, MQTT_RC_BAD_USERNAME_OR_PASSWORD, NULL);
+						}else{
+							send__connack(context, 0, CONNACK_REFUSED_BAD_USERNAME_PASSWORD, NULL);
+						}
+						X509_free(client_cert);
+						return MOSQ_ERR_AUTH;
+					}
+					context->username = mosquitto__strdup(new_username);
 					if(!context->username){
 						if(context->protocol == mosq_p_mqtt5){
 							send__connack(context, 0, MQTT_RC_SERVER_UNAVAILABLE, NULL);
@@ -939,6 +959,7 @@ int handle__connect(struct mosquitto *context)
 
 
 handle_connect_error:
+	mosquitto_property_free_all(&properties);
 	mosquitto__free(auth_data);
 	mosquitto__free(client_id);
 	mosquitto__free(username);
@@ -949,7 +970,13 @@ handle_connect_error:
 		mosquitto__free(will_struct->msg.topic);
 		mosquitto__free(will_struct);
 	}
-	context->will = NULL;
+	if(context->will){
+		mosquitto_property_free_all(&context->will->properties);
+		mosquitto__free(context->will->msg.payload);
+		mosquitto__free(context->will->msg.topic);
+		mosquitto__free(context->will);
+		context->will = NULL;
+	}
 #ifdef WITH_TLS
 	if(client_cert) X509_free(client_cert);
 #endif

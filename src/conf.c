@@ -187,7 +187,7 @@ static void config__init_reload(struct mosquitto__config *config)
 	config->log_timestamp = true;
 	mosquitto__free(config->log_timestamp_format);
 	config->log_timestamp_format = NULL;
-	config->max_keepalive = 65535;
+	config->max_keepalive = 0;
 	config->max_packet_size = 0;
 	config->max_inflight_messages = 20;
 	config->max_queued_messages = 1000;
@@ -1538,15 +1538,16 @@ static int config__read_file_core(struct mosquitto__config *config, bool reload,
 						}else if(!strcmp(token, "dlt")){
 							cr->log_dest |= MQTT3_LOG_DLT;
 						}else if(!strcmp(token, "file")){
-							cr->log_dest |= MQTT3_LOG_FILE;
 							if(config->log_fptr || config->log_file){
 								log__printf(NULL, MOSQ_LOG_ERR, "Error: Duplicate \"log_dest file\" value.");
 								return MOSQ_ERR_INVAL;
 							}
 							/* Get remaining string. */
-							token = &token[strlen(token)+1];
-							while(token[0] == ' ' || token[0] == '\t'){
-								token++;
+							token = saveptr;
+							if(token && token[0]){
+								while(token[0] == ' ' || token[0] == '\t'){
+									token++;
+								}
 							}
 							if(token[0]){
 								config->log_file = mosquitto__strdup(token);
@@ -1558,6 +1559,7 @@ static int config__read_file_core(struct mosquitto__config *config, bool reload,
 								log__printf(NULL, MOSQ_LOG_ERR, "Error: Empty \"log_dest file\" value in configuration.");
 								return MOSQ_ERR_INVAL;
 							}
+							cr->log_dest |= MQTT3_LOG_FILE;
 						}else{
 							log__printf(NULL, MOSQ_LOG_ERR, "Error: Invalid log_dest value (%s).", token);
 							return MOSQ_ERR_INVAL;
@@ -1902,6 +1904,8 @@ static int config__read_file_core(struct mosquitto__config *config, bool reload,
 						return MOSQ_ERR_INVAL;
 					}
 					cur_bridge->restart_timeout = atoi(token);
+					cur_bridge->backoff_base = 0;
+					cur_bridge->backoff_cap = 0;
 					if(cur_bridge->restart_timeout < 1){
 						log__printf(NULL, MOSQ_LOG_NOTICE, "restart_timeout interval too low, using 1 second.");
 						cur_bridge->restart_timeout = 1;

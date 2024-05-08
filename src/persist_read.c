@@ -208,7 +208,7 @@ static int persist__client_chunk_restore(FILE *db_fptr)
 				}
 			}
 		}
-		/* FIXME - we should expire clients here if they have exceeded their time */
+		session_expiry__add_from_persistence(context, chunk.F.session_expiry_time);
 	}else{
 		rc = 1;
 	}
@@ -427,7 +427,7 @@ int persist__restore(void)
 
 	db.msg_store_load = NULL;
 
-	fptr = mosquitto__fopen(db.config->persistence_filepath, "rb", false);
+	fptr = mosquitto__fopen(db.config->persistence_filepath, "rb", true);
 	if(fptr == NULL) return MOSQ_ERR_SUCCESS;
 	rlen = fread(&header, 1, 15, fptr);
 	if(rlen == 0){
