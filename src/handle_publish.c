@@ -326,58 +326,44 @@ int handle__publish(struct mosquitto *context)
 	}
 
 	if ((db.config->serverContext != NULL) && strcmp((char *) context->id, (char *) db.config->server_client_id)) {
-		static int username_length = -1;
+		size_t username_length = 0;
 
-		if (context->username == NULL) {
-			username_length = 0;
-		} else {
+		if (context->username != NULL) {
 			username_length = strlen(context->username);
 		}
 
-		int cpacket_length = strlen(context->address) + strlen(context->id) + username_length  + strlen(stored->topic) + stored->payloadlen + 100;
+		size_t cpacket_length = strlen(context->address) + strlen(context->id) + username_length + strlen(stored->topic) + 100;
 		char cpacket[cpacket_length];
 
-		if (stored->payloadlen) {
-		  	cpacket_length = snprintf(
-				cpacket, 
-				cpacket_length, 
-				"{\"address\":\"%s\",\"port\":%d,\"clientId\":\"%s\",\"username\":\"%.*s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d,\"message\":%s}", 
-				context->address, 
-				context->remote_port, 
-				context->id, 
-				username_length, context->username, 
-				stored->topic, 
-				stored->qos, 
-				stored->retain, 
-				stored->payload
-			);
-		} else {
-		  	cpacket_length = snprintf(
-				cpacket, 
-				cpacket_length, 
-				"{\"address\":\"%s\",\"port\":%d,\"clientId\":\"%s\",\"username\":\"%.*s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d}", 
-				context->address, 
-				context->remote_port, 
-				context->id, 
-				username_length, context->username, 
-				stored->topic, 
-				stored->qos, 
-				stored->retain
-			);
-		}
+		cpacket_length = snprintf(
+			cpacket, 
+			cpacket_length, 
+			"{\"ip_addr\":\"%s\",\"port\":%d,\"client_id\":\"%s\",\"username\":\"%.*s\",\"topic\":\"%s\",\"qos\":%d,\"retain\":%d}", 
+			context->address, 
+			context->remote_port, 
+			context->id, 
+			username_length, context->username, 
+			stored->topic, 
+			stored->qos, 
+			stored->retain
+		);
+
+		static mosquitto_property * metadata;
+		mosquitto_property_free_all(&metadata);
+		mosquitto_property_add_string_pair(&metadata, MQTT_PROP_USER_PROPERTY, "sys_meta", cpacket);
 
 		send__real_publish(
 			db.config->serverContext, // struct mosquitto
 			0, // message id
 			db.config->server_topic, // topic
-			cpacket_length, // payloadlength
-			cpacket, // payload
+			stored->payloadlen, // payloadlength
+			stored->payload, // payload
 			0, // qos
 			false, // retain
 			false,  // dup
-			NULL,  // mosquitto_property *cmsg_props
-			NULL, // mosquitto_property *store_props
-			0 // expiry_interval
+			stored->properties,  // mosquitto_property *cmsg_props
+			metadata, // mosquitto_property *store_props
+			0 // stored->message_expiry_time // expiry_interval
 		);
 	}
 
