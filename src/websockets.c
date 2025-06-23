@@ -543,7 +543,7 @@ static int callback_http(
 												"Server: mosquitto\r\n"
 												"Content-Length: %u\r\n\r\n",
 												(unsigned int)filestat.st_size);
-            if(lws_write(wsi, buf, buflen, LWS_WRITE_HTTP) < 0){
+			if(lws_write(wsi, buf, buflen, LWS_WRITE_HTTP) < 0){
 				fclose(u->fptr);
 				u->fptr = NULL;
 				return -1;
@@ -578,6 +578,10 @@ static int callback_http(
 						return -1;
 					}
 					wlen = (size_t)rc;
+					/* while still active, extend timeout */
+					if(wlen){
+						lws_set_timeout(wsi, PENDING_TIMEOUT_HTTP_CONTENT, 10);
+					}
 					if(wlen < buflen){
 						if(fseek(u->fptr, (long)(buflen-wlen), SEEK_CUR) < 0){
 							fclose(u->fptr);
@@ -698,7 +702,12 @@ void mosq_websockets_init(struct mosquitto__listener *listener, const struct mos
 	info.gid = -1;
 	info.uid = -1;
 #ifdef WITH_TLS
-	info.ssl_ca_filepath = listener->cafile;
+	if(listener->cafile){
+		info.ssl_ca_filepath = listener->cafile;
+	}
+	else if(listener->capath){
+		log__printf(NULL, MOSQ_LOG_WARNING, "Warning: CA path option is not supported for websockets");
+	}
 	info.ssl_cert_filepath = listener->certfile;
 	info.ssl_private_key_filepath = listener->keyfile;
 	info.ssl_cipher_list = listener->ciphers;
@@ -714,7 +723,7 @@ void mosq_websockets_init(struct mosquitto__listener *listener, const struct mos
 	if(listener->socket_domain == AF_INET){
 		info.options |= LWS_SERVER_OPTION_DISABLE_IPV6;
 	}
-    info.max_http_header_data = conf->websockets_headers_size;
+	info.max_http_header_data = conf->websockets_headers_size;
 
 	user = mosquitto__calloc(1, sizeof(struct libws_mqtt_hack));
 	if(!user){

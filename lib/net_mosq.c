@@ -198,6 +198,15 @@ void net__init_tls(void)
 }
 #endif
 
+bool net__is_connected(struct mosquitto *mosq)
+{
+#if defined(WITH_BROKER) && defined(WITH_WEBSOCKETS)
+	return mosq->sock != INVALID_SOCKET || mosq->wsi != NULL;
+#else
+	return mosq->sock != INVALID_SOCKET;
+#endif
+}
+
 /* Close a socket associated with a context and set it to -1.
  * Returns 1 on failure (context is NULL)
  * Returns 0 on success.
@@ -713,8 +722,8 @@ static int net__init_ssl_ctx(struct mosquitto *mosq)
 		}
 
 #ifdef SSL_MODE_RELEASE_BUFFERS
-			/* Use even less memory per SSL connection. */
-			SSL_CTX_set_mode(mosq->ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
+		/* Use even less memory per SSL connection. */
+		SSL_CTX_set_mode(mosq->ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
 #endif
 
 #if !defined(OPENSSL_NO_ENGINE)

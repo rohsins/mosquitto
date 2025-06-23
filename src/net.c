@@ -175,7 +175,7 @@ struct mosquitto *net__socket_accept(struct mosquitto__listener_sock *listensock
 	if(db.config->set_tcp_nodelay){
 		int flag = 1;
 #ifdef WIN32
-			if (setsockopt(new_sock, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) != 0) {
+		if (setsockopt(new_sock, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) != 0) {
 #else
 		if(setsockopt(new_sock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int)) != 0){
 #endif
@@ -245,6 +245,8 @@ struct mosquitto *net__socket_accept(struct mosquitto__listener_sock *listensock
 		log__printf(NULL, MOSQ_LOG_NOTICE, "New connection from %s:%d on port %d.",
 				new_context->address, new_context->remote_port, new_context->listener->port);
 	}
+
+	keepalive__add(new_context);
 
 	return new_context;
 }
@@ -672,6 +674,9 @@ static int net__bind_interface(struct mosquitto__listener *listener, struct addr
 						memcpy(&((struct sockaddr_in6 *)rp->ai_addr)->sin6_addr,
 								&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
 								sizeof(struct in6_addr));
+
+						((struct sockaddr_in6 *)rp->ai_addr)->sin6_scope_id = ((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_scope_id;
+
 						freeifaddrs(ifaddr);
 						return MOSQ_ERR_SUCCESS;
 					}
