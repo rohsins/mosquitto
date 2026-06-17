@@ -7,9 +7,16 @@ if cmd_subfolder not in sys.path:
 
 import mosq_test
 import mqtt5_props
+import mqtt_packets
 
 import socket
 import ssl
 import struct
 import subprocess
 import time
+
+
+from pathlib import Path
+
+source_dir = Path(__file__).resolve().parent
+ssl_dir = source_dir.parent / "ssl"

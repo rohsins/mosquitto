@@ -64,18 +64,20 @@ static struct mosquitto **keepalive_list = NULL;
 #endif
 
 #ifndef WITH_OLD_KEEPALIVE
+
+
 static int calc_index(struct mosquitto *context)
 {
 	return (int)(context->last_msg_in + context->keepalive*3/2) % keepalive_list_max;
 }
 #endif
 
+
 int keepalive__init(void)
 {
 #ifndef WITH_OLD_KEEPALIVE
 	struct mosquitto *context, *ctxt_tmp;
 
-	last_keepalive_check = db.now_s;
 	if(db.config->max_keepalive <= 0){
 		keepalive_list_max = (UINT16_MAX * 3)/2 + 1;
 	}else{
@@ -95,27 +97,41 @@ int keepalive__init(void)
 		}
 	}
 #endif
+	last_keepalive_check = db.now_s;
 	return MOSQ_ERR_SUCCESS;
 }
+
 
 void keepalive__cleanup(void)
 {
 #ifndef WITH_OLD_KEEPALIVE
+	for(int idx=0; idx<keepalive_list_max; idx++){
+		struct mosquitto *context, *ctxt_tmp;
+		DL_FOREACH_SAFE2(keepalive_list[idx], context, ctxt_tmp, keepalive_next){
+			DL_DELETE2(keepalive_list[idx], context, keepalive_prev, keepalive_next);
+		}
+	}
 	mosquitto_free(keepalive_list);
 	keepalive_list = NULL;
 	keepalive_list_max = 0;
 #endif
 }
 
+
 int keepalive__add(struct mosquitto *context)
 {
 #ifndef WITH_OLD_KEEPALIVE
-	if(context->keepalive <= 0 || !net__is_connected(context)) return MOSQ_ERR_SUCCESS;
+	if(context->keepalive <= 0 || !net__is_connected(context)){
+		return MOSQ_ERR_SUCCESS;
+	}
 #ifdef WITH_BRIDGE
-	if(context->bridge) return MOSQ_ERR_SUCCESS;
+	if(context->bridge){
+		return MOSQ_ERR_SUCCESS;
+	}
 #endif
 
 	DL_APPEND2(keepalive_list[calc_index(context)], context, keepalive_prev, keepalive_next);
+	context->keepalive_add_time = db.now_s;
 #else
 	UNUSED(context);
 #endif
@@ -124,15 +140,34 @@ int keepalive__add(struct mosquitto *context)
 
 
 #ifndef WITH_OLD_KEEPALIVE
+
+
 void keepalive__check(void)
 {
 	struct mosquitto *context, *ctxt_tmp;
+	time_t timeout;
 
+	if(db.contexts_by_sock){
+		/* Check the next 5 seconds for upcoming expiries */
+		/* FIXME - find the actual next entry without having to iterate over
+		 * the whole list */
+		timeout = 5;
+		for(time_t i=5; i>0; i--){
+			if(keepalive_list[(db.now_s + i) % keepalive_list_max]){
+				timeout = i;
+			}
+		}
+		loop__update_next_event(timeout*1000);
+	}
 	for(time_t i=last_keepalive_check; i<db.now_s; i++){
 		int idx = (int)(i % keepalive_list_max);
 		if(keepalive_list[idx]){
 			DL_FOREACH_SAFE2(keepalive_list[idx], context, ctxt_tmp, keepalive_next){
-				if(net__is_connected(context)){
+				/* keepalive_add_time lets us account for the client adding itself to the keepalive
+				 * list when its last_msg_in value is greater than the last_keepalive_check.
+				 * Without this, the client would be expired if it has keepalive == max_keepalive.
+				 */
+				if(context->keepalive_add_time <= last_keepalive_check && net__is_connected(context)){
 					/* Client has exceeded keepalive*1.5 */
 					do_disconnect(context, MOSQ_ERR_KEEPALIVE);
 				}
@@ -143,6 +178,8 @@ void keepalive__check(void)
 	last_keepalive_check = db.now_s;
 }
 #else
+
+
 void keepalive__check(void)
 {
 	struct mosquitto *context, *ctxt_tmp;
@@ -181,7 +218,9 @@ int keepalive__remove(struct mosquitto *context)
 #ifndef WITH_OLD_KEEPALIVE
 	int idx;
 
-	if(context->keepalive <= 0 || context->keepalive_prev == NULL) return MOSQ_ERR_SUCCESS;
+	if(context->keepalive <= 0 || context->keepalive_prev == NULL){
+		return MOSQ_ERR_SUCCESS;
+	}
 
 	idx = calc_index(context);
 	if(keepalive_list[idx]){

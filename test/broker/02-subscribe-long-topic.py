@@ -6,42 +6,29 @@
 
 from mosq_test_helper import *
 
-def do_test(proto_ver):
-    rc = 1
+def do_test(port, proto_ver):
     mid = 1
-    keepalive = 60
-    connect_packet = mosq_test.gen_connect("subscribe-long-test", keepalive=keepalive, proto_ver=proto_ver)
-    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
+    connect_packet = mqtt_packets.gen_connect("subscribe-long-test", proto_ver=proto_ver)
+    connack_packet = mqtt_packets.gen_connack(rc=0, proto_ver=proto_ver)
 
-    subscribe_packet = mosq_test.gen_subscribe(mid, "/"*65535, 0, proto_ver=proto_ver)
-    suback_packet = mosq_test.gen_suback(mid, 0, proto_ver=proto_ver)
+    subscribe_packet = mqtt_packets.gen_subscribe(mid, "/"*65535, 0, proto_ver=proto_ver)
 
-    port = mosq_test.get_port()
-    broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
-
-    try:
-        sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
-        if proto_ver == 4:
+    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
+    if proto_ver == 4:
+        try:
             mosq_test.do_send_receive(sock, subscribe_packet, b"", "suback")
-        else:
-            disconnect_packet = mosq_test.gen_disconnect(proto_ver=5, reason_code = mqtt5_rc.MQTT_RC_MALFORMED_PACKET)
-            mosq_test.do_send_receive(sock, subscribe_packet, disconnect_packet, "suback")
+        except BrokenPipeError:
+            pass
+    else:
+        disconnect_packet = mqtt_packets.gen_disconnect(proto_ver=5, reason_code = mqtt5_rc.MALFORMED_PACKET)
+        mosq_test.do_send_receive(sock, subscribe_packet, disconnect_packet, "suback")
 
-        rc = 0
-
-        sock.close()
-    except mosq_test.TestError:
-        pass
-    finally:
-        broker.terminate()
-        broker.wait()
-        (stdo, stde) = broker.communicate()
-        if rc:
-            print(stde.decode('utf-8'))
-            print("proto_ver=%d" % (proto_ver))
-            exit(rc)
+    sock.close()
 
 
-do_test(proto_ver=4)
-do_test(proto_ver=5)
-exit(0)
+if __name__ == '__main__':
+    port = mosq_test.get_port()
+    broker = MosquittoBroker(port=port)
+    with broker:
+        do_test(port, proto_ver=4)
+        do_test(port, proto_ver=5)

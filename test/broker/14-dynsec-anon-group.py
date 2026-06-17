@@ -2,25 +2,18 @@
 
 # Test the anonymous group support by adding a group, setting the anon group, adding a role to the group and checking a subscription.
 from mosq_test_helper import *
+from dynsec_helper import *
 import json
 import shutil
+
+mosq_test.require_features(["WITH_CONTROL", "WITH_PLUGINS", "WITH_PLUGIN_DYNAMIC_SECURITY", "WITH_TLS"])
 
 def write_config(filename, port):
     with open(filename, 'w') as f:
         f.write("listener %d\n" % (port))
         f.write("allow_anonymous true\n")
-        f.write("plugin ../../plugins/dynamic-security/mosquitto_dynamic_security.so\n")
-        f.write("plugin_opt_config_file %d/dynamic-security.json\n" % (port))
-
-def command_check(sock, command_payload, expected_response):
-    command_packet = mosq_test.gen_publish(topic="$CONTROL/dynamic-security/v1", qos=0, payload=json.dumps(command_payload))
-    sock.send(command_packet)
-    response = json.loads(mosq_test.read_publish(sock))
-    if response != expected_response:
-        print(expected_response)
-        print(response)
-        raise ValueError(response)
-
+        f.write(f"plugin {mosq_paths.plugin_dynamic_security}\n")
+        f.write(f"plugin_opt_config_file {Path(str(port), 'dynamic-security.json')}\n")
 
 
 port = mosq_test.get_port()
@@ -58,7 +51,7 @@ get_anon_group_response = {'responses': [{'command': 'getAnonymousGroup',
 create_role_apply_command = { "commands": [
     { "command": "createRole", "rolename": "anon", "correlationData": "4" },
     { "command": "addRoleACL", "rolename": "anon",
-		"acltype": "subscribeLiteral", "topic": "anon/topic", "allow": True,
+        "acltype": "subscribeLiteral", "topic": "anon/topic", "allow": True,
         "correlationData": "5" },
     { "command": "addGroupRole", "groupname": "anon-clients",
         "rolename": "anon", "correlationData": "6"}
@@ -70,6 +63,13 @@ create_role_apply_response = {'responses': [
     {'command': 'addGroupRole', 'correlationData': '6'}
     ]}
 
+delete_anon_group_command = { "commands": [
+    { "command": "deleteGroup", "groupname": "anon-clients", "correlationData": "40" }
+    ]
+}
+delete_anon_group_response = {'responses': [
+    {'command': 'deleteGroup', "error":'Deleting the anonymous group is forbidden', 'correlationData': '40'}
+    ]}
 
 delete_anon_group_command = { "commands": [
     { "command": "deleteGroup", "groupname": "anon-clients", "correlationData": "40" }
@@ -82,30 +82,29 @@ delete_anon_group_response = {'responses': [
 
 
 rc = 1
-keepalive = 10
 
 # Admin
-connect_packet_admin = mosq_test.gen_connect("ctrl-test", keepalive=keepalive, username="admin", password="admin")
-connack_packet_admin = mosq_test.gen_connack(rc=0)
+connect_packet_admin = mqtt_packets.gen_connect("ctrl-test", username="admin", password="admin")
+connack_packet_admin = mqtt_packets.gen_connack(rc=0)
 
 mid = 1
-subscribe_packet_admin = mosq_test.gen_subscribe(mid, "$CONTROL/dynamic-security/#", 1)
-suback_packet_admin = mosq_test.gen_suback(mid, 1)
+subscribe_packet_admin = mqtt_packets.gen_subscribe(mid, "$CONTROL/dynamic-security/#", 1)
+suback_packet_admin = mqtt_packets.gen_suback(mid, 1)
 
 # Client
-connect_packet = mosq_test.gen_connect("cid", keepalive=keepalive, proto_ver=5)
-connack_packet = mosq_test.gen_connack(rc=0, proto_ver=5)
+connect_packet = mqtt_packets.gen_connect("cid", proto_ver=5)
+connack_packet = mqtt_packets.gen_connack(rc=0, proto_ver=5)
 
 mid = 1
-subscribe_packet = mosq_test.gen_subscribe(mid, "anon/topic", qos=1, proto_ver=5)
-suback_packet_fail = mosq_test.gen_suback(mid, mqtt5_rc.MQTT_RC_NOT_AUTHORIZED, proto_ver=5)
-suback_packet_success = mosq_test.gen_suback(mid, 1, proto_ver=5)
+subscribe_packet = mqtt_packets.gen_subscribe(mid, "anon/topic", qos=1, proto_ver=5)
+suback_packet_fail = mqtt_packets.gen_suback(mid, mqtt5_rc.NOT_AUTHORIZED, proto_ver=5)
+suback_packet_success = mqtt_packets.gen_suback(mid, 1, proto_ver=5)
 
-disconnect_packet_kick = mosq_test.gen_disconnect(reason_code=mqtt5_rc.MQTT_RC_ADMINISTRATIVE_ACTION, proto_ver=5)
+disconnect_packet_kick = mqtt_packets.gen_disconnect(reason_code=mqtt5_rc.ADMINISTRATIVE_ACTION, proto_ver=5)
 
 try:
     os.mkdir(str(port))
-    shutil.copyfile("dynamic-security-init.json", "%d/dynamic-security.json" % (port))
+    shutil.copyfile(str(Path(__file__).resolve().parent / "dynamic-security-init.json"), "%d/dynamic-security.json" % (port))
 except FileExistsError:
     pass
 
@@ -148,6 +147,8 @@ try:
     # Try to delete anon group, this should fail
     command_check(sock, delete_anon_group_command, delete_anon_group_response)
 
+    check_details(sock, 1, 1, 2, 5)
+
     rc = 0
 
     sock.close()
@@ -160,11 +161,12 @@ finally:
     except FileNotFoundError:
         pass
     os.rmdir(f"{port}")
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
+    mosq_test.terminate_broker(broker)
+    if mosq_test.wait_for_subprocess(broker):
+        print("broker not terminated")
+        if rc == 0: rc=1
     if rc:
-        print(stde.decode('utf-8'))
+        print(mosq_test.broker_log(broker))
 
 
 exit(rc)

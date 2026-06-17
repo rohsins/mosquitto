@@ -5,27 +5,17 @@
 
 from mosq_test_helper import *
 
-rc = 1
-keepalive = 10
-props = mqtt5_props.gen_string_prop(mqtt5_props.PROP_AUTHENTICATION_METHOD, "basic")
-connect_packet = mosq_test.gen_connect("connect-test", proto_ver=5, keepalive=keepalive, properties=props)
-connack_packet = mosq_test.gen_connack(rc=mqtt5_rc.MQTT_RC_BAD_AUTHENTICATION_METHOD, proto_ver=5, properties=None)
+def do_test():
+    props = mqtt5_props.gen_string_prop(mqtt5_props.AUTHENTICATION_METHOD, "basic")
+    connect_packet = mqtt_packets.gen_connect("connect-test", proto_ver=5, properties=props)
+    connack_packet = mqtt_packets.gen_connack(rc=mqtt5_rc.BAD_AUTHENTICATION_METHOD, proto_ver=5, properties=None)
 
-port = mosq_test.get_port()
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port)
+    port = mosq_test.get_port()
+    broker = MosquittoBroker(port=port)
+    with broker:
+        sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
+        sock.close()
 
-try:
-    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
-    sock.close()
-    rc = 0
-except mosq_test.TestError:
-    pass
-finally:
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
-    if rc:
-        print(stde.decode('utf-8'))
 
-exit(rc)
-
+if __name__ == '__main__':
+    do_test()

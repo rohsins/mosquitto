@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2020 Roger Light <roger@atchoo.org>
+Copyright (c) 2012-2021 Roger Light <roger@atchoo.org>
 
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
@@ -27,8 +27,8 @@ Contributors:
 #  include <windows.h>
 #  include <process.h>
 #   define snprintf sprintf_s
-#	include <io.h>
-#	include <windows.h>
+#   include <io.h>
+#   include <windows.h>
 #else
 #  include <unistd.h>
 #  include <termios.h>
@@ -38,7 +38,7 @@ Contributors:
 #include "get_password.h"
 
 #define MAX_BUFFER_LEN 65500
-#define SALT_LEN 12
+
 
 void get_password__reset_term(void)
 {
@@ -61,14 +61,19 @@ static int gets_quiet(char *s, int len)
 
 	memset(s, 0, len);
 	h  = GetStdHandle(STD_INPUT_HANDLE);
-	GetConsoleMode(h, &con_orig);
-	con_quiet = con_orig;
-	con_quiet &= ~ENABLE_ECHO_INPUT;
-	con_quiet |= ENABLE_LINE_INPUT;
-	SetConsoleMode(h, con_quiet);
-	if(!ReadConsole(h, s, len, &read_len, NULL)){
+	if(GetConsoleMode(h, &con_orig)){
+		con_quiet = con_orig;
+		con_quiet &= ~ENABLE_ECHO_INPUT;
+		con_quiet |= ENABLE_LINE_INPUT;
+		SetConsoleMode(h, con_quiet);
+		if(!ReadConsole(h, s, len, &read_len, NULL)){
+			SetConsoleMode(h, con_orig);
+			fprintf(stderr, "ReadConsole\n");
+			return 1;
+		}
 		SetConsoleMode(h, con_orig);
-		return 1;
+	}else{
+		fgets(s, len, stdin);
 	}
 	while(s[strlen(s)-1] == 10 || s[strlen(s)-1] == 13){
 		s[strlen(s)-1] = 0;
@@ -76,26 +81,23 @@ static int gets_quiet(char *s, int len)
 	if(strlen(s) == 0){
 		return 1;
 	}
-	SetConsoleMode(h, con_orig);
-
 	return 0;
 #else
-	struct termios ts_quiet, ts_orig;
+	struct termios ts_quiet;
 	char *rs;
 
 	memset(s, 0, (size_t)len);
-	tcgetattr(0, &ts_orig);
-	ts_quiet = ts_orig;
+	tcgetattr(0, &ts_quiet);
 	ts_quiet.c_lflag &= (unsigned int)(~(ECHO | ICANON));
 	tcsetattr(0, TCSANOW, &ts_quiet);
 
 	rs = fgets(s, len, stdin);
-	tcsetattr(0, TCSANOW, &ts_orig);
+	get_password__reset_term();
 
 	if(!rs){
 		return 1;
 	}else{
-		while(s[strlen(s)-1] == 10 || s[strlen(s)-1] == 13){
+		while(strlen(s) > 0 && (s[strlen(s)-1] == 10 || s[strlen(s)-1] == 13)){
 			s[strlen(s)-1] = 0;
 		}
 		if(strlen(s) == 0){
@@ -105,6 +107,7 @@ static int gets_quiet(char *s, int len)
 	return 0;
 #endif
 }
+
 
 int get_password(const char *prompt, const char *verify_prompt, bool quiet, char *password, size_t len)
 {

@@ -2,80 +2,69 @@
 
 from mosq_test_helper import *
 
-def write_config(filename, port1, port2):
-    with open(filename, 'w') as f:
-        f.write("port %d\n" % (port2))
-        f.write("allow_anonymous true\n")
-        f.write("\n")
-        f.write("connection bridge_test\n")
-        f.write("address 127.0.0.1:%d\n" % (port1))
-        f.write("topic bridge/# both 0\n")
-        f.write("notifications false\n")
-        f.write("restart_timeout 2\n")
-        f.write("\n")
-        f.write("bridge_cafile ../ssl/all-ca.crt\n")
-        f.write("bridge_insecure true\n")
+from broker_config import BrokerConfig, ListenerConfig, MQTTBridgeConfig
+from mosquitto_broker import MosquittoBroker
 
-(port1, port2) = mosq_test.get_port(2)
-conf_file = os.path.basename(__file__).replace('.py', '.conf')
-write_config(conf_file, port1, port2)
+mosq_test.require_features(["INC_BRIDGE_SUPPORT", "WITH_TLS"])
 
-rc = 1
-keepalive = 60
-client_id = socket.gethostname()+".bridge_test"
-connect_packet = mosq_test.gen_connect(client_id, keepalive=keepalive, clean_session=False, proto_ver=128+4)
-connack_packet = mosq_test.gen_connack(rc=0)
+source_dir = Path(__file__).resolve().parent
+ssl_dir = source_dir.parent / "ssl"
 
-mid = 1
-subscribe_packet = mosq_test.gen_subscribe(mid, "bridge/#", 0)
-suback_packet = mosq_test.gen_suback(mid, 0)
+def pub_helper(port):
+    connect_packet = mqtt_packets.gen_connect("test-helper")
+    connack_packet = mqtt_packets.gen_connack(rc=0)
+    publish_packet = mqtt_packets.gen_publish("bridge/ssl/test", qos=0, payload="message")
+    disconnect_packet = mqtt_packets.gen_disconnect()
+    sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port, connack_error="helper connack")
+    sock.send(publish_packet)
+    sock.send(disconnect_packet)
+    sock.close()
 
-publish_packet = mosq_test.gen_publish("bridge/ssl/test", qos=0, payload="message")
+def do_test(address):
+    (port1, port2) = mosq_test.get_port(2)
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH, cafile="../ssl/all-ca.crt")
-context.load_cert_chain(certfile="../ssl/server.crt", keyfile="../ssl/server.key")
-ssock = context.wrap_socket(sock, server_side=True)
-ssock.settimeout(20)
-ssock.bind(('', port1))
-ssock.listen(5)
+    client_id = socket.gethostname()+".bridge_test"
+    connect_packet = mqtt_packets.gen_connect(client_id, clean_session=False, proto_ver=128+4)
+    connack_packet = mqtt_packets.gen_connack(rc=0)
 
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port2, use_conf=True)
+    mid = 1
+    subscribe_packet = mqtt_packets.gen_subscribe(mid, "bridge/#", 0)
+    suback_packet = mqtt_packets.gen_suback(mid, 0)
 
-try:
-    (bridge, address) = ssock.accept()
-    bridge.settimeout(20)
+    publish_packet = mqtt_packets.gen_publish("bridge/ssl/test", qos=0, payload="message")
 
-    mosq_test.expect_packet(bridge, "connect", connect_packet)
-    bridge.send(connack_packet)
+    ssock = mosq_test.listen_sock(port1, f"{ssl_dir}/all-ca.crt", f"{ssl_dir}/server-san.crt", f"{ssl_dir}/server-san.key")
 
-    mosq_test.expect_packet(bridge, "subscribe", subscribe_packet)
-    bridge.send(suback_packet)
+    broker_config = BrokerConfig(
+        listeners = [ListenerConfig(port=port2)],
+        bridges = [MQTTBridgeConfig(
+            connection="bridge_test",
+            address=f"{address}:{port1}",
+            topics=["bridge/# both 0"],
+            notifications=False,
+            restart_timeout=2,
+            bridge_cafile=ssl_dir/'all-ca.crt',
+            bridge_insecure=True,
+        )],
+        allow_anonymous=True,
+    )
+    broker = MosquittoBroker(config=broker_config)
+    with broker:
+        (bridge, address) = ssock.accept()
+        bridge.settimeout(20)
 
-    pub = subprocess.Popen(['./08-ssl-bridge-helper.py', str(port2)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    pub.wait()
-    (stdo, stde) = pub.communicate()
+        mosq_test.expect_packet(bridge, "connect", connect_packet)
+        bridge.send(connack_packet)
 
-    mosq_test.expect_packet(bridge, "publish", publish_packet)
-    rc = 0
+        mosq_test.expect_packet(bridge, "subscribe", subscribe_packet)
+        bridge.send(suback_packet)
 
-    bridge.close()
-except mosq_test.TestError:
-    pass
-finally:
-    os.remove(conf_file)
-    try:
+        pub_helper(port2)
+
+        mosq_test.expect_packet(bridge, "publish", publish_packet)
+
         bridge.close()
-    except NameError:
-        pass
+        ssock.close()
 
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
-    if rc:
-        print(stde.decode('utf-8'))
-    ssock.close()
-
-exit(rc)
-
+do_test("127.0.0.1")
+do_test(mosq_test.get_non_loopback_ip()) # tests non-matching certificate hostname with bridge_insecure

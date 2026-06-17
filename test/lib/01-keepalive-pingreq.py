@@ -9,52 +9,22 @@
 
 from mosq_test_helper import *
 
-port = mosq_test.get_lib_port()
+def do_test(conn, data):
+    keepalive = 2
+    connect_packet = mqtt_packets.gen_connect("01-keepalive-pingreq", keepalive=keepalive)
+    connack_packet = mqtt_packets.gen_connack(rc=0)
 
-rc = 1
-keepalive = 5
-connect_packet = mosq_test.gen_connect("01-keepalive-pingreq", keepalive=keepalive)
-connack_packet = mosq_test.gen_connack(rc=0)
-
-pingreq_packet = mosq_test.gen_pingreq()
-pingresp_packet = mosq_test.gen_pingresp()
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-sock.settimeout(10)
-sock.bind(('', port))
-sock.listen(5)
-
-client_args = sys.argv[1:]
-env = dict(os.environ)
-env['LD_LIBRARY_PATH'] = '../../lib:../../lib/cpp'
-try:
-    pp = env['PYTHONPATH']
-except KeyError:
-    pp = ''
-env['PYTHONPATH'] = '../../lib/python:'+pp
-client = mosq_test.start_client(filename=sys.argv[1].replace('/', '-'), cmd=client_args, env=env, port=port)
-
-try:
-    (conn, address) = sock.accept()
-    conn.settimeout(keepalive+10)
+    pingreq_packet = mqtt_packets.gen_pingreq()
+    pingresp_packet = mqtt_packets.gen_pingresp()
 
     mosq_test.do_receive_send(conn, connect_packet, connack_packet, "connect")
 
     mosq_test.expect_packet(conn, "pingreq", pingreq_packet)
-    time.sleep(1.0)
     conn.send(pingresp_packet)
 
     mosq_test.expect_packet(conn, "pingreq", pingreq_packet)
-    rc = 0
 
-    conn.close()
-except mosq_test.TestError:
-    pass
-finally:
-    client.terminate()
-    client.wait()
-    sock.close()
 
-exit(rc)
-
+mosq_test.client_test(Path("c", mosq_test.get_build_type(), "01-keepalive-pingreq.exe"), [], do_test, None)
+if mosq_test.check_features(["WITH_LIB_CPP"]):
+    mosq_test.client_test(Path("cpp", mosq_test.get_build_type(), "01-keepalive-pingreq.exe"), [], do_test, None)

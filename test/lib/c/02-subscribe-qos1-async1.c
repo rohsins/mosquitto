@@ -3,38 +3,62 @@
 #include <stdlib.h>
 #include <time.h>
 #include <mosquitto.h>
+#ifdef WIN32
+#  include <windows.h>
+#endif
 
 /* mosquitto_connect_async() test, with mosquitto_loop_start() called before mosquitto_connect_async(). */
+
+#define QOS 1
 
 static int run = -1;
 static bool should_run = true;
 
-void on_connect(struct mosquitto *mosq, void *obj, int rc)
+
+static void on_connect(struct mosquitto *mosq, void *obj, int rc)
 {
+	(void)obj;
+
 	if(rc){
 		exit(1);
 	}else{
-		mosquitto_subscribe(mosq, NULL, "qos1/test", 1);
+		mosquitto_subscribe(mosq, NULL, "qos1/test", QOS);
 	}
 }
 
-void on_disconnect(struct mosquitto *mosq, void *obj, int rc)
+
+static void on_disconnect(struct mosquitto *mosq, void *obj, int rc)
 {
+	(void)mosq;
+	(void)obj;
+
 	run = rc;
 }
 
-void on_subscribe(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
+
+static void on_subscribe(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
 {
-	//mosquitto_disconnect(mosq);
+	(void)mosq;
+	(void)obj;
+	(void)mid;
+
+	if(qos_count != 1 || granted_qos[0] != QOS){
+		abort();
+	}
 	should_run = false;
 }
+
 
 int main(int argc, char *argv[])
 {
 	int rc;
 	struct mosquitto *mosq;
+	int port;
 
-	int port = atoi(argv[1]);
+	if(argc < 2){
+		return 1;
+	}
+	port = atoi(argv[1]);
 
 	mosquitto_lib_init();
 
@@ -59,9 +83,13 @@ int main(int argc, char *argv[])
 	}
 
 	/* 50 millis to be system polite */
-	struct timespec tv = { 0, 50e6 };
 	while(should_run){
+#ifdef WIN32
+		Sleep(50);
+#else
+		struct timespec tv = { 0, 50000000 };
 		nanosleep(&tv, NULL);
+#endif
 	}
 
 	mosquitto_disconnect(mosq);

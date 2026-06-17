@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include <CUnit/CUnit.h>
 #include <CUnit/Basic.h>
 
@@ -5,7 +7,9 @@
 
 #include "tls_mosq.c"
 
+
 //static int mosquitto__cmp_hostname_wildcard(char *certname, const char *hostname)
+
 
 void hostname_cmp_helper(char *certname, const char *hostname, int expected)
 {
@@ -15,6 +19,7 @@ void hostname_cmp_helper(char *certname, const char *hostname, int expected)
 		printf("%d || %d\n", rc, expected);
 	}
 }
+
 
 void TEST_tls_hostname_compare_null(void)
 {

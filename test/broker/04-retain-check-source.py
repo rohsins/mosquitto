@@ -3,13 +3,12 @@
 # Test for CVE-2018-12546
 
 from mosq_test_helper import *
-import signal
 
 def write_config(filename, port, per_listener):
     with open(filename, 'w') as f:
         f.write("per_listener_settings %s\n" % (per_listener))
         f.write("check_retain_source true\n")
-        f.write("port %d\n" % (port))
+        f.write("listener %d\n" % (port))
         f.write("allow_anonymous true\n")
         f.write("acl_file %s\n" % (filename.replace('.conf', '.acl')))
 
@@ -31,14 +30,13 @@ def do_test(proto_ver, per_listener):
 
 
     rc = 1
-    keepalive = 60
-    connect_packet = mosq_test.gen_connect("retain-check", keepalive=keepalive, proto_ver=proto_ver)
-    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
+    connect_packet = mqtt_packets.gen_connect("retain-check", proto_ver=proto_ver)
+    connack_packet = mqtt_packets.gen_connack(rc=0, proto_ver=proto_ver)
 
     mid = 1
-    publish_packet = mosq_test.gen_publish("test/topic", qos=0, payload="retained message", retain=True, proto_ver=proto_ver)
-    subscribe_packet = mosq_test.gen_subscribe(mid, "test/topic", 0, proto_ver=proto_ver)
-    suback_packet = mosq_test.gen_suback(mid, 0, proto_ver=proto_ver)
+    publish_packet = mqtt_packets.gen_publish("test/topic", qos=0, payload="retained message", retain=True, proto_ver=proto_ver)
+    subscribe_packet = mqtt_packets.gen_subscribe(mid, "test/topic", 0, proto_ver=proto_ver)
+    suback_packet = mqtt_packets.gen_suback(mid, 0, proto_ver=proto_ver)
 
     broker = mosq_test.start_broker(filename=os.path.basename(__file__), use_conf=True, port=port)
 
@@ -55,7 +53,7 @@ def do_test(proto_ver, per_listener):
 
         # Remove "write" ability
         write_acl_2(acl_file)
-        broker.send_signal(signal.SIGHUP)
+        mosq_test.reload_broker(broker)
 
         sock = mosq_test.do_client_connect(connect_packet, connack_packet, port=port)
         mosq_test.do_send_receive(sock, subscribe_packet, suback_packet, "suback 2")
@@ -69,11 +67,12 @@ def do_test(proto_ver, per_listener):
     finally:
         os.remove(conf_file)
         os.remove(acl_file)
-        broker.terminate()
-        broker.wait()
-        (stdo, stde) = broker.communicate()
+        mosq_test.terminate_broker(broker)
+        if mosq_test.wait_for_subprocess(broker):
+            print("broker not terminated")
+            if rc == 0: rc=1
         if rc:
-            print(stde.decode('utf-8'))
+            print(mosq_test.broker_log(broker))
             exit(rc)
 
 port = mosq_test.get_port()

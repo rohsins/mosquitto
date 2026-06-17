@@ -5,38 +5,37 @@
 
 from mosq_test_helper import *
 
-if sys.version < '2.7':
-    print("WARNING: SSL not supported on Python 2.6")
-    exit(0)
+from broker_config import BrokerConfig, ListenerConfig
+from mosquitto_broker import MosquittoBroker
 
-def write_config(filename, port1, port2):
-    with open(filename, 'w') as f:
-        f.write("port %d\n" % (port2))
-        f.write("\n")
-        f.write("listener %d\n" % (port1))
-        f.write("cafile ../ssl/all-ca.crt\n")
-        f.write("certfile ../ssl/server.crt\n")
-        f.write("keyfile ../ssl/server.key\n")
-        f.write("require_certificate true\n")
+mosq_test.require_features(["WITH_TLS"])
 
-(port1, port2) = mosq_test.get_port(2)
-conf_file = os.path.basename(__file__).replace('.py', '.conf')
-write_config(conf_file, port1, port2)
 
+port1 = mosq_test.get_port()
+broker_config = BrokerConfig(
+    listeners = [
+        ListenerConfig(
+            port=port1,
+            cafile=ssl_dir/'all-ca.crt',
+            certfile=ssl_dir/'server.crt',
+            keyfile=ssl_dir/'server.key',
+            require_certificate=True,
+        )
+    ],
+    allow_anonymous=True,
+)
+broker = MosquittoBroker(config=broker_config)
 rc = 1
-connect_packet = mosq_test.gen_connect("connect-success-test")
-
-broker = mosq_test.start_broker(filename=os.path.basename(__file__), port=port2, use_conf=True)
-
 ssl_eof = False
-try:
-    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile="../ssl/test-root-ca.crt")
-    context.load_cert_chain(certfile="../ssl/client-expired.crt", keyfile="../ssl/client-expired.key")
+with broker:
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=f"{ssl_dir}/test-root-ca.crt")
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=f"{ssl_dir}/client-expired.crt", keyfile=f"{ssl_dir}/client-expired.key")
     with socket.create_connection(("localhost", port1)) as sock:
         ssock = context.wrap_socket(sock, server_hostname="localhost", suppress_ragged_eofs=True)
         ssock.settimeout(None)
         try:
-            mosq_test.do_send_receive(ssock, connect_packet, "", "connack")
+            ssock.read(1)
         except ssl.SSLEOFError:
             # Under load, sometimes the broker closes the connection after the
             # handshake has failed, but before we have chance to send our
@@ -48,22 +47,13 @@ try:
             elif err.errno == 8 and "EOF occurred" in err.strerror:
                 rc = 0
             else:
-                broker.terminate()
                 print(err.strerror)
                 raise ValueError(err.errno) from err
-except mosq_test.TestError:
-    pass
-finally:
-    os.remove(conf_file)
-    time.sleep(0.5)
-    broker.terminate()
-    broker.wait()
-    (stdo, stde) = broker.communicate()
 
-    if ssl_eof:
-        if "certificate verify failed" in stde.decode('utf-8'):
-            rc = 0
-    if rc:
-        print(stde.decode('utf-8'))
+if ssl_eof:
+    if "certificate verify failed" in stde.decode('utf-8'):
+        rc = 0
+if rc:
+    print(mosq_test.broker_log(broker))
 
 exit(rc)

@@ -4,13 +4,14 @@
 
 from mosq_test_helper import *
 import os.path
-import signal
+
+mosq_test.require_features(["WITH_PERSISTENCE"])
 
 def write_config(filename, port1, port2, per_listener):
     with open(filename, 'w') as f:
         f.write("per_listener_settings %s\n" % (per_listener))
         f.write("check_retain_source true\n")
-        f.write("port %d\n" % (port1))
+        f.write("listener %d\n" % (port1))
         f.write("allow_anonymous true\n")
         f.write("acl_file %s\n" % (filename.replace('.conf', '.acl')))
         f.write("persistence true\n")
@@ -46,9 +47,8 @@ def do_test(proto_ver, per_listener, username):
 
 
     rc = 1
-    keepalive = 60
-    connect_packet = mosq_test.gen_connect("retain-check", keepalive=keepalive, username=username, proto_ver=proto_ver)
-    connack_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
+    connect_packet = mqtt_packets.gen_connect("retain-check", username=username, proto_ver=proto_ver)
+    connack_packet = mqtt_packets.gen_connack(rc=0, proto_ver=proto_ver)
 
     if per_listener == "true":
         u = None
@@ -57,13 +57,13 @@ def do_test(proto_ver, per_listener, username):
         # unless we provide a username
         u = username
 
-    connect2_packet = mosq_test.gen_connect("retain-recv", keepalive=keepalive, username=u, proto_ver=proto_ver)
-    connack2_packet = mosq_test.gen_connack(rc=0, proto_ver=proto_ver)
+    connect2_packet = mqtt_packets.gen_connect("retain-recv", username=u, proto_ver=proto_ver)
+    connack2_packet = mqtt_packets.gen_connack(rc=0, proto_ver=proto_ver)
 
     mid = 1
-    publish_packet = mosq_test.gen_publish("test/topic", qos=0, payload="retained message", retain=True, proto_ver=proto_ver)
-    subscribe_packet = mosq_test.gen_subscribe(mid, "test/topic", 0, proto_ver=proto_ver)
-    suback_packet = mosq_test.gen_suback(mid, 0, proto_ver=proto_ver)
+    publish_packet = mqtt_packets.gen_publish("test/topic", qos=0, payload="retained message", retain=True, proto_ver=proto_ver)
+    subscribe_packet = mqtt_packets.gen_subscribe(mid, "test/topic", 0, proto_ver=proto_ver)
+    suback_packet = mqtt_packets.gen_suback(mid, 0, proto_ver=proto_ver)
 
     broker = mosq_test.start_broker(filename=os.path.basename(__file__), use_conf=True, port=port1)
 
@@ -80,8 +80,10 @@ def do_test(proto_ver, per_listener, username):
 
         # Remove "write" ability
         write_acl_2(acl_file, username)
-        broker.terminate()
-        broker.wait()
+        mosq_test.terminate_broker(broker)
+        if mosq_test.wait_for_subprocess(broker):
+            print("broker not terminated")
+            if rc == 0: rc=1
         if os.path.isfile(persistence_file) == False:
             raise FileNotFoundError("Persistence file not written")
 
@@ -97,17 +99,18 @@ def do_test(proto_ver, per_listener, username):
     except mosq_test.TestError:
         pass
     finally:
-        broker.terminate()
-        broker.wait()
+        mosq_test.terminate_broker(broker)
+        if mosq_test.wait_for_subprocess(broker):
+            print("broker not terminated")
+            if rc == 0: rc=1
         os.remove(conf_file)
         os.remove(acl_file)
         try:
             os.remove(persistence_file)
         except FileNotFoundError:
             pass
-        (stdo, stde) = broker.communicate()
         if rc:
-            print(stde.decode('utf-8'))
+            print(mosq_test.broker_log(broker))
             exit(rc)
 
 

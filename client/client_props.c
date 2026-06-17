@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2020 Roger Light <roger@atchoo.org>
+Copyright (c) 2018-2021 Roger Light <roger@atchoo.org>
 
 All rights reserved. This program and the accompanying materials
 are made available under the terms of the Eclipse Public License 2.0
@@ -34,18 +34,17 @@ Contributors:
 #endif
 
 #include "mosquitto.h"
-#include "mqtt_protocol.h"
 #include "client_shared.h"
 
-enum prop_type
-{
+enum prop_type {
 	PROP_TYPE_BYTE,
 	PROP_TYPE_INT16,
 	PROP_TYPE_INT32,
 	PROP_TYPE_BINARY,
 	PROP_TYPE_STRING,
-	PROP_TYPE_STRING_PAIR
+	PROP_TYPE_STRING_PAIR,
 };
+
 
 /* This parses property inputs. It should work for any command type, but is limited at the moment.
  *
@@ -60,6 +59,7 @@ enum prop_type
  * connect user-property key value
  */
 
+
 int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx)
 {
 	char *cmdname = NULL, *propname = NULL;
@@ -68,6 +68,7 @@ int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx
 	mosquitto_property **proplist;
 	int rc;
 	long tmpl;
+	long long tmpll;
 	size_t szt;
 
 	/* idx now points to "command" */
@@ -79,13 +80,13 @@ int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx
 
 	cmdname = argv[*idx];
 	if(mosquitto_string_to_command(cmdname, &cmd)){
-		fprintf(stderr, "Error: Invalid command given in --property argument.\n\n");
+		fprintf(stderr, "Error: Invalid command %s given in --property argument.\n\n", cmdname);
 		return MOSQ_ERR_INVAL;
 	}
 
 	propname = argv[(*idx)+1];
 	if(mosquitto_string_to_property_info(propname, &identifier, &type)){
-		fprintf(stderr, "Error: Invalid property name given in --property argument.\n\n");
+		fprintf(stderr, "Error: Invalid property name %s given in --property argument.\n\n", propname);
 		return MOSQ_ERR_INVAL;
 	}
 
@@ -126,10 +127,6 @@ int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx
 			break;
 
 		case CMD_SUBSCRIBE:
-			if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER && identifier != MQTT_PROP_USER_PROPERTY){
-				fprintf(stderr, "Error: %s property not supported for %s in --property argument.\n\n", propname, cmdname);
-				return MOSQ_ERR_NOT_SUPPORTED;
-			}
 			proplist = &cfg->subscribe_props;
 			break;
 
@@ -180,20 +177,20 @@ int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx
 			rc = mosquitto_property_add_int16(proplist, identifier, (uint16_t )tmpl);
 			break;
 		case MQTT_PROP_TYPE_INT32:
-			tmpl = atol(value);
-			if(tmpl < 0 || tmpl > UINT32_MAX){
-				fprintf(stderr, "Error: Property value (%ld) out of range for property %s.\n\n", tmpl, propname);
+			tmpll = atoll(value);
+			if(tmpll < 0 || tmpll > UINT32_MAX){
+				fprintf(stderr, "Error: Property value (%lld) out of range for property %s.\n\n", tmpll, propname);
 				return MOSQ_ERR_INVAL;
 			}
-			rc = mosquitto_property_add_int32(proplist, identifier, (uint32_t )tmpl);
+			rc = mosquitto_property_add_int32(proplist, identifier, (uint32_t )tmpll);
 			break;
 		case MQTT_PROP_TYPE_VARINT:
-			tmpl = atol(value);
-			if(tmpl < 0 || tmpl > UINT32_MAX){
-				fprintf(stderr, "Error: Property value (%ld) out of range for property %s.\n\n", tmpl, propname);
+			tmpll = atoll(value);
+			if(tmpll < 0 || tmpll > UINT32_MAX){
+				fprintf(stderr, "Error: Property value (%lld) out of range for property %s.\n\n", tmpll, propname);
 				return MOSQ_ERR_INVAL;
 			}
-			rc = mosquitto_property_add_varint(proplist, identifier, (uint32_t )tmpl);
+			rc = mosquitto_property_add_varint(proplist, identifier, (uint32_t )tmpll);
 			break;
 		case MQTT_PROP_TYPE_BINARY:
 			szt = strlen(value);
@@ -218,4 +215,3 @@ int cfg_parse_property(struct mosq_config *cfg, int argc, char *argv[], int *idx
 	}
 	return MOSQ_ERR_SUCCESS;
 }
-
