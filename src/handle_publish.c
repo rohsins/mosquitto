@@ -166,8 +166,8 @@ int handle__accepted_publish(struct mosquitto *context, struct mosquitto__base_m
 			stored->data.retain
 		);
 
-		static mosquitto_property * metadata;
-		mosquitto_property_free_all(&metadata);
+		static mosquitto_property * metadata = NULL;
+		mosquitto_property_copy_all(&metadata, stored->data.properties);
 		mosquitto_property_add_string_pair(&metadata, MQTT_PROP_USER_PROPERTY, "sys_meta", cpacket);
 
 		send__real_publish(
@@ -180,9 +180,11 @@ int handle__accepted_publish(struct mosquitto *context, struct mosquitto__base_m
 			false, // retain
 			false,  // dup
 			0,  // subscription_identifier
-			stored->data.properties, // mosquitto_property *store_props
+			metadata, // mosquitto_property *metadata
 			0 // stored->message_expiry_time // expiry_interval
 		);
+
+		mosquitto_property_free_all(&metadata);
 	}
 
 	switch(stored->data.qos){
